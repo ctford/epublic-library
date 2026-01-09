@@ -1,0 +1,1 @@
+"""Kindle MCP Server package."""

@@ -1,0 +1,14 @@
+[project]
+name = "epublic-library"
+version = "0.1.0"
+description = "MCP server for searching EPUB books by metadata and topic"
+requires-python = ">=3.9"
+authors = [{name = "Chris Ford"}]
+dependencies = [
+    "mcp>=0.1",
+    "ebooklib>=0.18",
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
