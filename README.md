@@ -46,6 +46,25 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 Replace `/path/to/your/epub/books` with the directory containing your EPUB files.
 
+## Integration with Claude Code
+
+Add to `~/.claude/config.json`:
+
+```json
+{
+  "mcpServers": {
+    "epublic": {
+      "command": "/path/to/epublic-library/venv/bin/python3",
+      "args": ["/path/to/epublic-library/src/main.py", "/path/to/your/epub/books"]
+    }
+  }
+}
+```
+
+If `~/.claude/config.json` doesn't exist, create it with the above configuration.
+
+Replace `/path/to/your/epub/books` with the directory containing your EPUB files.
+
 ## Tools
 
 ### `search_books`
