@@ -17,8 +17,11 @@ pip install -e .
 ## Testing
 
 ```bash
-python test_books.py
+pip install -e ".[dev]"
+pytest tests/ -v
 ```
+
+See [TESTING.md](TESTING.md) for comprehensive testing guide.
 
 ## Running the Server
 
@@ -35,11 +38,13 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
   "mcpServers": {
     "epublic": {
       "command": "/path/to/epublic-library/venv/bin/python3",
-      "args": ["/path/to/epublic-library/src/main.py"]
+      "args": ["/path/to/epublic-library/src/main.py", "/path/to/your/epub/books"]
     }
   }
 }
 ```
+
+Replace `/path/to/your/epub/books` with the directory containing your EPUB files.
 
 ## Tools
 
