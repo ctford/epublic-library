@@ -1,9 +1,16 @@
 """Search functionality for books."""
 
 import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from dataclasses import asdict, dataclass
 from books import BookMetadata
+
+# Try to import fuzzy matching, but make it optional
+try:
+    from fuzzywuzzy import fuzz
+    HAS_FUZZY = True
+except ImportError:
+    HAS_FUZZY = False
 
 
 @dataclass
@@ -16,16 +23,43 @@ class SearchResult:
     context: str  # surrounding text
 
 
-def search_metadata(query: str, books: Dict[str, BookMetadata]) -> List[Dict[str, Any]]:
-    """Search book metadata (title, author, published year)."""
-    query_lower = query.lower()
+def _exact_match(query: str, target: str) -> bool:
+    """Check if query is a substring of target (case-insensitive)."""
+    return query.lower() in target.lower()
+
+
+def _fuzzy_match(query: str, target: str, threshold: int = 80) -> bool:
+    """Check if query fuzzy matches target above threshold."""
+    if not HAS_FUZZY:
+        return _exact_match(query, target)
+    
+    # Use token_set_ratio for better handling of word order variations
+    similarity = fuzz.token_set_ratio(query.lower(), target.lower())
+    return similarity >= threshold
+
+
+def search_metadata(query: str, books: Dict[str, BookMetadata], 
+                   fuzzy: bool = True, fuzzy_threshold: int = 80) -> List[Dict[str, Any]]:
+    """
+    Search book metadata (title, author, published year).
+    
+    Args:
+        query: Search term
+        books: Dictionary of books to search
+        fuzzy: Enable fuzzy matching for typo tolerance (requires fuzzywuzzy)
+        fuzzy_threshold: Similarity threshold for fuzzy matching (0-100)
+    
+    Returns:
+        List of matching books with metadata
+    """
     results = []
+    matcher = _fuzzy_match if fuzzy else _exact_match
     
     for title, book in books.items():
         # Check if query matches title, author, or year
-        title_match = query_lower in title.lower()
-        author_match = book.author and query_lower in book.author.lower()
-        year_match = book.published and query_lower in book.published
+        title_match = matcher(query, title)
+        author_match = book.author and matcher(query, book.author)
+        year_match = book.published and _exact_match(query, book.published)  # Year always exact
         
         if title_match or author_match or year_match:
             results.append({

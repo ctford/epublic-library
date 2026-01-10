@@ -9,10 +9,20 @@ An MCP server that makes your EPUB book library searchable from Claude Code and 
 
 ## Setup
 
+### Basic Setup
+
 ```bash
 cd /path/to/epublic-library
 pip install -e .
 ```
+
+### With Fuzzy Matching (Typo Tolerance)
+
+```bash
+pip install -e ".[fuzzy]"
+```
+
+This enables fuzzy matching for searching author/book names with typos.
 
 ## Testing
 
@@ -70,12 +80,20 @@ Replace `/path/to/your/epub/books` with the directory containing your EPUB files
 ### `search_books`
 Search book metadata by title, author, or publication year.
 
-**Example:**
+**Exact Match Example:**
 ```
-search_books(query="Continuous Deployment")
+search_books(query="Kief Morris")
+```
+
+**Typo Tolerant Example (with fuzzy matching installed):**
+```
+search_books(query="Keith Morris")  # Finds "Kief Morris"
+search_books(query="Infrastructure Code")  # Finds "Infrastructure as Code"
 ```
 
 Returns book metadata including author, publication year, and chapter list.
+
+**Note**: Fuzzy matching is enabled by default if `fuzzywuzzy` is installed. It matches author names and titles with typos/variations. Years always require exact matches.
 
 ### `find_topic`
 Find advice or content on a specific topic with attribution.

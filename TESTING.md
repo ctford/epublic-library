@@ -94,7 +94,7 @@ Tests for `src/books.py`:
 
 ### `tests/test_search.py`
 
-Tests for `src/search.py`:
+Tests for `src/search.py` - basic search functionality:
 
 **TestSearchMetadata**
 - Title search (exact and partial)
@@ -105,6 +105,33 @@ Tests for `src/search.py`:
 - No matches
 - Result structure validation
 - Chapter list inclusion
+
+### `tests/test_search_fuzzy.py`
+
+Tests for fuzzy matching (requires `fuzzywuzzy` optional dependency):
+
+**TestExactMatch**
+- Case-insensitive exact matching
+- Substring matching
+- Non-matches
+
+**TestFuzzyMatch**
+- Exact matches with fuzzy enabled
+- Single character typos (substitution, extra, missing)
+- Character transposition
+- Word order variations
+- Threshold behavior
+
+**TestSearchMetadataFuzzy**
+- Fuzzy disabled behavior
+- Author name typos
+- Book title typos
+- Year always requires exact match
+- Fallback when fuzzywuzzy not installed
+
+**TestSearchMetadataFuzzyRealWorld**
+- Finding "Kief Morris's" "Infrastructure as Code" with variations
+- Multiple search query variations for same book
 
 **TestSearchTopic**
 - Topic word match
@@ -121,9 +148,9 @@ Tests for `src/search.py`:
 
 ## Test Statistics
 
-- **Total Tests**: ~40
-- **Lines of Test Code**: ~350
-- **Coverage**: Core business logic (books and search modules)
+- **Total Tests**: ~55 (35 basic + ~20 fuzzy)
+- **Lines of Test Code**: ~550+
+- **Coverage**: Core business logic (books and search modules) + fuzzy matching
 
 ## Fixtures
 
@@ -207,6 +234,33 @@ def test_error_handling():
 def test_multiple_inputs(input, expected):
     assert convert(input) == expected
 ```
+
+## Fuzzy Matching Tests
+
+Fuzzy matching tests are included but require optional dependencies:
+
+```bash
+# Install fuzzy matching dependencies
+pip install -e ".[fuzzy]"
+
+# Run fuzzy matching tests
+pytest tests/test_search_fuzzy.py -v
+```
+
+**What's Tested:**
+- Single character typos (Kief → Keith)
+- Character transposition (Mrris → Morris)
+- Missing/extra characters
+- Word order variations (Morris, Kief → Kief Morris)
+- Threshold behavior (80% similarity default)
+
+**Real-World Examples:**
+- Finding "Kief Morris" even with typos
+- Finding "Infrastructure as Code" when searching "Infrastructure Code"
+- Year searches always remain exact (2016 ≠ 2017)
+
+**Graceful Degradation:**
+If `fuzzywuzzy` is not installed, search falls back to exact matching automatically.
 
 ## Troubleshooting
 
