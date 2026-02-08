@@ -7,22 +7,54 @@ An MCP server that makes your EPUB book library searchable from Claude Code and 
 - **Metadata Search**: Find books by title, author, or publication year
 - **Topic Search**: Find advice and content on specific topics with full attribution (book, author, chapter)
 
-## Setup
+## Quick Start
 
-### Basic Setup
+### 1. Install
 
 ```bash
 cd /path/to/epublic-library
+python3 -m venv venv
+source venv/bin/activate
 pip install -e .
 ```
 
-### With Fuzzy Matching (Typo Tolerance)
+Optional fuzzy matching (typo tolerance):
 
 ```bash
 pip install -e ".[fuzzy]"
 ```
 
-This enables fuzzy matching for searching author/book names with typos.
+### 2. Configure Claude Desktop
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "epublic": {
+      "command": "/path/to/epublic-library/venv/bin/python3",
+      "args": ["/path/to/epublic-library/src/main.py"]
+    }
+  }
+}
+```
+
+### 3. Restart Claude Desktop
+
+Fully quit and reopen Claude Desktop.
+
+## Integration with Claude Code
+
+Add the same configuration to `~/.claude/config.json` (create the file if it does not exist).
+
+## Where Books Come From
+
+On startup, the server scans these locations:
+
+- `~/Library/Application Support/Amazon/Kindle/`
+- `~/Sync/` (useful for testing)
+
+To use a different directory, update `src/books.py` and restart the server.
 
 ## Testing
 
@@ -31,49 +63,7 @@ pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
-See [TESTING.md](TESTING.md) for comprehensive testing guide.
-
-## Running the Server
-
-```bash
-python src/main.py
-```
-
-## Integration with Claude Desktop
-
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "epublic": {
-      "command": "/path/to/epublic-library/venv/bin/python3",
-      "args": ["/path/to/epublic-library/src/main.py", "/path/to/your/epub/books"]
-    }
-  }
-}
-```
-
-Replace `/path/to/your/epub/books` with the directory containing your EPUB files.
-
-## Integration with Claude Code
-
-Add to `~/.claude/config.json`:
-
-```json
-{
-  "mcpServers": {
-    "epublic": {
-      "command": "/path/to/epublic-library/venv/bin/python3",
-      "args": ["/path/to/epublic-library/src/main.py", "/path/to/your/epub/books"]
-    }
-  }
-}
-```
-
-If `~/.claude/config.json` doesn't exist, create it with the above configuration.
-
-Replace `/path/to/your/epub/books` with the directory containing your EPUB files.
+See `TESTING.md` for the full testing guide.
 
 ## Tools
 
@@ -116,3 +106,9 @@ Returns passages with full attribution:
 - Full text is stored in memory for fast searching
 - Search is case-insensitive
 - Results include surrounding context for better understanding
+
+## Troubleshooting
+
+- Tools not appearing: verify the `command` path in the config and restart Claude Desktop.
+- Book parsing errors: only EPUB is supported; ensure files are in the scan paths.
+- Slow startup: large libraries are parsed on startup and cached in memory.

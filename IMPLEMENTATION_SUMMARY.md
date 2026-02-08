@@ -93,10 +93,9 @@ epublic-library/
 │   ├── books.py                # EPUB parsing, metadata extraction
 │   └── search.py               # Search implementation
 ├── venv/                        # Python virtual environment
-├── test_books.py               # Quick testing script
-├── PLAN.md                      # Original implementation plan
-├── CLAUDE_DESKTOP_SETUP.md     # Setup instructions
-└── README.md                    # Basic usage docs
+├── IMPLEMENTATION_SUMMARY.md    # Technical details and design notes
+├── TESTING.md                   # Testing guide
+└── README.md                    # Usage docs
 ```
 
 ## Next Steps (Optional)
@@ -109,15 +108,10 @@ epublic-library/
 
 ## Testing
 
-All core functionality tested with `information-theory-inference-and-learning-algorithms.epub`:
+Run the test suite with:
 
 ```bash
-python3 test_books.py
+pytest tests/ -v
 ```
 
-Successful tests:
-- ✅ EPUB parsing
-- ✅ Metadata extraction
-- ✅ Text extraction
-- ✅ Metadata search
-- ✅ Topic search with context
+See `TESTING.md` for the full testing guide.
