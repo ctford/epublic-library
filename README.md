@@ -111,6 +111,11 @@ find_topic(topic="effective teams", author_filter="Marty Cagan", limit=5, offset
 find_topic(topic="AI consciousness", author_filter="Martha Wells", book_filter="All Systems Red")
 ```
 
+**Match type for filters:**
+```
+find_topic(topic="functional programming", author_filter="Hickey", match_type="fuzzy")
+```
+
 Returns:
 - `total_results` with pagination metadata
 - `results` array of passages with full attribution

@@ -73,16 +73,39 @@ def search_metadata(query: str, books: Dict[str, BookMetadata],
 
 
 def search_topic(
-    query: str,
+    query: str | None,
     books: Dict[str, BookMetadata],
     limit: int = 10,
     offset: int = 0,
     book_filter: Optional[str] = None,
     author_filter: Optional[str] = None,
+    match_type: str = "fuzzy",
+    topics: Optional[list[str]] = None,
 ) -> Dict[str, Any]:
     """Search for topic in book content."""
     results = []
-    query_lower = query.lower()
+    if query is not None:
+        query_lower = query.lower()
+        topic_list = [query]
+    else:
+        query_lower = ""
+        topic_list = []
+
+    if topics:
+        topic_list = list(topics)
+
+    if not topic_list:
+        return {
+            "total_results": 0,
+            "offset": offset,
+            "limit": limit,
+            "results": [],
+        }
+
+    if match_type not in {"exact", "fuzzy"}:
+        raise ValueError("match_type must be 'exact' or 'fuzzy'")
+
+    filter_matcher = _fuzzy_match if match_type == "fuzzy" else _exact_match
 
     def _normalize(text: str) -> str:
         return re.sub(r'\s+', ' ', text).strip()
@@ -110,10 +133,10 @@ def search_topic(
         return paragraph, before, after
     
     for title, book in books.items():
-        if book_filter and not _fuzzy_match(book_filter, book.title):
+        if book_filter and not filter_matcher(book_filter, book.title):
             continue
         if author_filter:
-            if not book.author or not _fuzzy_match(author_filter, book.author):
+            if not book.author or not filter_matcher(author_filter, book.author):
                 continue
 
         if not book.text:
@@ -123,9 +146,18 @@ def search_topic(
         text_lower = book.text.lower()
         matches = []
         
-        # Simple regex search for the query as whole words
-        pattern = r'\b' + re.escape(query_lower) + r'\b'
-        for match in re.finditer(pattern, text_lower, re.IGNORECASE):
+        # Simple regex search for the query/topics as whole words
+        topic_patterns = []
+        for topic in topic_list:
+            if not topic:
+                continue
+            topic_patterns.append(r'\b' + re.escape(topic.lower()) + r'\b')
+
+        if not topic_patterns:
+            continue
+
+        combined_pattern = "(" + "|".join(topic_patterns) + ")"
+        for match in re.finditer(combined_pattern, text_lower, re.IGNORECASE):
             matches.append(match.start())
         
         # Extract context around each match

@@ -212,6 +212,26 @@ class TestSearchTopic:
         assert all(result["book_title"] == "Test Book" for result in results["results"])
         assert all(result["author"] == "Test Author" for result in results["results"])
 
+    def test_search_topic_match_type_exact(self, mock_books):
+        """Exact match type should be strict for filters."""
+        results = search_topic(
+            "testing",
+            mock_books,
+            author_filter="test author",
+            match_type="exact",
+        )
+        assert len(results["results"]) > 0
+
+    def test_search_topic_match_type_fuzzy(self, mock_books):
+        """Fuzzy match type should allow partial matches for filters."""
+        results = search_topic(
+            "testing",
+            mock_books,
+            author_filter="Author",
+            match_type="fuzzy",
+        )
+        assert len(results["results"]) > 0
+
 
 class TestSearchIntegration:
     """Integration tests combining metadata and topic search."""

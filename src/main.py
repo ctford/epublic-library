@@ -92,9 +92,18 @@ def get_tools() -> list[Tool]:
                     "offset": {
                         "type": "integer",
                         "description": "Number of results to skip before returning matches (default 0)"
+                    },
+                    "match_type": {
+                        "type": "string",
+                        "description": "Match strategy for book/author filters: exact or fuzzy (default fuzzy)"
+                    },
+                    "topics": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional list of topics; matches any topic (OR logic)"
                     }
                 },
-                "required": ["topic"]
+                "required": []
             }
         )
     ]
@@ -154,17 +163,23 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
             author_filter = arguments.get("author_filter")
             limit = arguments.get("limit", 10)
             offset = arguments.get("offset", 0)
+            match_type = arguments.get("match_type", "fuzzy")
+            topics = arguments.get("topics")
             if not isinstance(limit, int) or limit < 0:
                 return json.dumps({"error": "limit must be a non-negative integer"})
             if not isinstance(offset, int) or offset < 0:
                 return json.dumps({"error": "offset must be a non-negative integer"})
+            if match_type not in {"exact", "fuzzy"}:
+                return json.dumps({"error": "match_type must be 'exact' or 'fuzzy'"})
             results = search_topic(
-                topic,
+                topic if topic else None,
                 books_cache,
                 limit,
                 offset,
                 book_filter=book_filter,
                 author_filter=author_filter,
+                match_type=match_type,
+                topics=topics,
             )
             return json.dumps(results, indent=2)
         
