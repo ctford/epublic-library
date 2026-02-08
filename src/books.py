@@ -190,7 +190,7 @@ def _discover_book_paths() -> list[str]:
     return paths
 
 
-def _books_signature_from_paths(paths: list[str]) -> dict:
+def _library_signature_from_paths(paths: list[str]) -> dict:
     entries = []
     for path in paths:
         try:
@@ -217,7 +217,7 @@ def _save_metadata_cache(cache_path: Path, payload: dict) -> None:
 
 
 def scan_kindle_library() -> Dict[str, BookMetadata]:
-    """Scan Kindle library and parse all books."""
+    """Scan the library and parse all book metadata."""
     books = {}
     for file_path in _discover_book_paths():
         logger.info("Parsing metadata: %s", Path(file_path).name)
@@ -247,7 +247,7 @@ def _metadata_cache_path() -> Path:
 
 
 def load_cached_books() -> tuple[Dict[str, BookMetadata], bool]:
-    """Load cached books without scanning the filesystem."""
+    """Load cached books without scanning the filesystem; may return empty."""
     cache_path = _metadata_cache_path()
     cached = _load_metadata_cache(cache_path)
     if cached:
@@ -258,11 +258,11 @@ def load_cached_books() -> tuple[Dict[str, BookMetadata], bool]:
 
 
 def refresh_books_cache() -> Dict[str, BookMetadata]:
-    """Rebuild metadata cache if the library has changed."""
+    """Rebuild metadata cache with a full scan if the library has changed."""
     cache_path = _metadata_cache_path()
 
     paths = _discover_book_paths()
-    signature = _books_signature_from_paths(paths)
+    signature = _library_signature_from_paths(paths)
 
     cached = _load_metadata_cache(cache_path)
     if cached and cached.get("signature") == signature:

@@ -34,10 +34,10 @@ async def load_books():
     elapsed = asyncio.get_event_loop().time() - start
     logger.info("Loaded %s books in %.2fs", len(books_cache), elapsed)
     if loaded_from_cache:
-        asyncio.create_task(refresh_books_cache_async())
+        asyncio.create_task(refresh_metadata_cache_async())
 
 
-async def refresh_books_cache_async():
+async def refresh_metadata_cache_async():
     """Refresh metadata cache in the background."""
     global books_cache
     local_books = books_cache
