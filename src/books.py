@@ -55,23 +55,29 @@ class HTMLToText(HTMLParser):
         return ''.join(self.text)
 
 
-def parse_epub(path: str) -> BookMetadata:
-    """Parse EPUB file and extract metadata and content."""
+def _read_epub(path: str):
     try:
-        book = epub.read_epub(path)
+        return epub.read_epub(path)
     except Exception as e:
         logger.error("Error reading EPUB %s: %s", Path(path).name, e)
         return None
-    
+
+
+def parse_epub_metadata(path: str) -> BookMetadata | None:
+    """Parse EPUB file and extract metadata and table of contents."""
+    book = _read_epub(path)
+    if not book:
+        return None
+
     # Extract metadata
     title = Path(path).stem
     author = None
     published = None
-    
+
     # Get title from metadata
     if hasattr(book, 'title') and book.title:
         title = book.title
-    
+
     # Extract author and date from metadata
     if hasattr(book, 'metadata') and book.metadata:
         metadata = book.metadata
@@ -81,7 +87,7 @@ def parse_epub(path: str) -> BookMetadata:
                 author = str(dc['creator'][0][0]) if dc['creator'] else None
             if 'date' in dc and dc['date']:
                 published = str(dc['date'][0][0]) if dc['date'] else None
-    
+
     # Extract TOC
     toc = []
     if book.toc:
@@ -91,45 +97,60 @@ def parse_epub(path: str) -> BookMetadata:
                 toc.append((str(title_text), uid, 0))
             else:
                 toc.append((str(item.title) if hasattr(item, 'title') else str(item), "", 0))
-    
-    # Extract text content
-    text_content = []
-    
-    # Build a dict of items by ID for quick lookup
-    items_by_id = {item.get_id(): item for item in book.get_items()}
-    
-    for item in book.spine:
-        # item can be a string ID or a tuple (id, linear)
-        if isinstance(item, tuple):
-            item_id = item[0]
-        else:
-            item_id = item
-        
-        try:
-            doc = items_by_id.get(item_id)
-            if doc and hasattr(doc, 'get_content'):
-                content = doc.get_content()
-                if isinstance(content, bytes):
-                    content = content.decode('utf-8', errors='ignore')
-                
-                # Convert HTML to text
-                parser = HTMLToText()
-                parser.feed(content)
-                text = parser.get_text()
-                text_content.append(text)
-        except Exception as e:
-            pass  # Skip items that fail
-    
-    full_text = '\n'.join(text_content)
-    
+
     return BookMetadata(
         title=title,
         author=author,
         published=published,
         path=path,
         toc=toc,
-        text=full_text
+        text="",
     )
+
+
+def parse_epub_text(path: str) -> str:
+    """Parse EPUB file and extract full text content."""
+    book = _read_epub(path)
+    if not book:
+        return ""
+
+    text_content = []
+
+    # Build a dict of items by ID for quick lookup
+    items_by_id = {item.get_id(): item for item in book.get_items()}
+
+    for item in book.spine:
+        # item can be a string ID or a tuple (id, linear)
+        if isinstance(item, tuple):
+            item_id = item[0]
+        else:
+            item_id = item
+
+        try:
+            doc = items_by_id.get(item_id)
+            if doc and hasattr(doc, 'get_content'):
+                content = doc.get_content()
+                if isinstance(content, bytes):
+                    content = content.decode('utf-8', errors='ignore')
+
+                # Convert HTML to text
+                parser = HTMLToText()
+                parser.feed(content)
+                text = parser.get_text()
+                text_content.append(text)
+        except Exception:
+            pass  # Skip items that fail
+
+    return '\n'.join(text_content)
+
+
+def parse_epub(path: str) -> BookMetadata | None:
+    """Parse EPUB file and extract metadata and content."""
+    metadata = parse_epub_metadata(path)
+    if not metadata:
+        return None
+    metadata.text = parse_epub_text(path)
+    return metadata
 
 
 def scan_kindle_library() -> Dict[str, BookMetadata]:
@@ -159,8 +180,8 @@ def scan_kindle_library() -> Dict[str, BookMetadata]:
                     
                     # For now, focus on EPUB (easier to parse)
                     if file.lower().endswith('.epub'):
-                        logger.info("Parsing: %s", file)
-                        book = parse_epub(file_path)
+                        logger.info("Parsing metadata: %s", file)
+                        book = parse_epub_metadata(file_path)
                         if book:
                             books[book.title] = book
     
