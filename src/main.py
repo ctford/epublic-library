@@ -95,7 +95,8 @@ def get_tools() -> list[Tool]:
                     },
                     "match_type": {
                         "type": "string",
-                        "description": "Match strategy for book/author filters: exact or fuzzy (default fuzzy)"
+                        "enum": ["exact", "fuzzy"],
+                        "description": "Match strategy for book/author filters (default fuzzy)"
                     },
                     "topics": {
                         "type": "array",
