@@ -53,6 +53,21 @@ async def refresh_metadata_cache_async():
         logger.error("Metadata refresh failed: %s", exc)
 
 
+async def prebuild_index_async():
+    """Build FTS index in the background."""
+    start = asyncio.get_event_loop().time()
+    try:
+        await asyncio.to_thread(
+            prebuild_index,
+            books_cache,
+            text_loader=lambda book: parse_epub_text(book.path),
+        )
+        elapsed = asyncio.get_event_loop().time() - start
+        logger.info("FTS index prebuild completed in %.2fs", elapsed)
+    except Exception as exc:
+        logger.error("FTS index prebuild failed: %s", exc)
+
+
 def get_tools() -> list[Tool]:
     """Define available MCP tools."""
     return [
@@ -257,7 +272,7 @@ async def main():
     """Start the MCP server."""
     # Load books on startup
     await load_books()
-    prebuild_index(books_cache, text_loader=lambda book: parse_epub_text(book.path))
+    asyncio.create_task(prebuild_index_async())
     
     # Create MCP server
     server = Server("epublic-library")
