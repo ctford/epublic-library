@@ -166,6 +166,17 @@ class TestSearchTopic:
         if results:
             assert results[0]['author'] == "Unknown"
 
+    def test_search_topic_book_filter(self, mock_books):
+        """Test filtering results to a specific book."""
+        results = search_topic("testing", mock_books, book_filter="Test Book")
+        assert len(results) > 0
+        assert all(result['book'] == "Test Book" for result in results)
+
+    def test_search_topic_book_filter_excludes(self, mock_books):
+        """Test that book_filter excludes non-matching books."""
+        results = search_topic("deployment", mock_books, book_filter="Test Book")
+        assert len(results) == 0
+
 
 class TestSearchIntegration:
     """Integration tests combining metadata and topic search."""

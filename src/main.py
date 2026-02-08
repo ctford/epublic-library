@@ -85,8 +85,9 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
         
         elif name == "find_topic":
             topic = arguments.get("topic", "")
+            book_filter = arguments.get("book_filter")
             limit = arguments.get("limit", 10)
-            results = search_topic(topic, books_cache, limit)
+            results = search_topic(topic, books_cache, limit, book_filter=book_filter)
             return json.dumps(results, indent=2)
         
         else:

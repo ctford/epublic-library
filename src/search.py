@@ -72,12 +72,20 @@ def search_metadata(query: str, books: Dict[str, BookMetadata],
     return results
 
 
-def search_topic(query: str, books: Dict[str, BookMetadata], limit: int = 10) -> List[Dict[str, Any]]:
+def search_topic(
+    query: str,
+    books: Dict[str, BookMetadata],
+    limit: int = 10,
+    book_filter: Optional[str] = None,
+) -> List[Dict[str, Any]]:
     """Search for topic in book content."""
     results = []
     query_lower = query.lower()
     
     for title, book in books.items():
+        if book_filter and not _fuzzy_match(book_filter, book.title):
+            continue
+
         if not book.text:
             continue
         
