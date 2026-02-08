@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import sys
 from collections import OrderedDict
 from typing import Any
 
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 # Global caches
 books_cache = None
+library_paths: list[str] = []
 # Simple LRU cache for parsed book text
 text_cache = OrderedDict()
 TEXT_CACHE_MAX_BOOKS = 20
@@ -26,10 +28,11 @@ TEXT_CACHE_MAX_BOOKS = 20
 
 async def load_books():
     """Load books on startup."""
-    global books_cache
+    global books_cache, library_paths
     start = asyncio.get_event_loop().time()
     logger.info("Loading EPUB library...")
-    books_cache, loaded_from_cache = get_books()
+    library_paths = [arg for arg in sys.argv[1:] if arg]
+    books_cache, loaded_from_cache = get_books(library_paths)
     elapsed = asyncio.get_event_loop().time() - start
     logger.info("Loaded %s books in %.2fs", len(books_cache), elapsed)
     if loaded_from_cache:
@@ -41,7 +44,7 @@ async def refresh_metadata_cache_async():
     global books_cache
     start = asyncio.get_event_loop().time()
     try:
-        updated = await asyncio.to_thread(refresh_books_cache)
+        updated = await asyncio.to_thread(refresh_books_cache, library_paths)
         if updated:
             books_cache = updated
         elapsed = asyncio.get_event_loop().time() - start

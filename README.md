@@ -35,7 +35,10 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
   "mcpServers": {
     "epublic": {
       "command": "/path/to/epublic-library/venv/bin/python3",
-      "args": ["/path/to/epublic-library/src/main.py"]
+      "args": [
+        "/path/to/epublic-library/src/main.py",
+        "/path/to/epub-library"
+      ]
     }
   }
 }
@@ -51,12 +54,9 @@ Add the same configuration to `~/.claude/config.json` (create the file if it doe
 
 ## Where Books Come From
 
-On startup, the server scans these locations:
-
-- `~/Library/Application Support/Amazon/Kindle/`
-- `~/Sync/` (useful for testing)
-
-To use a different directory, update `src/books.py` and restart the server.
+On startup, the server scans the library paths passed in the Claude Desktop config.
+You can pass multiple paths by adding more items to the `args` array.
+Alternatively, set `EPUBLIC_LIBRARY_PATHS` (a path list separated by your OS path separator).
 
 ## Testing
 

@@ -158,23 +158,18 @@ def parse_epub(path: str) -> BookMetadata | None:
     return metadata
 
 
-# Library discovery helpers
-def _search_paths() -> list[Path]:
-    kindle_path = Path.home() / "Library" / "Application Support" / "Amazon" / "Kindle"
-    search_paths = [kindle_path]
-
-    # Also search Sync folder for testing
-    sync_path = Path.home() / "Sync"
-    if sync_path.exists():
-        search_paths.append(sync_path)
-
-    return search_paths
+def _normalize_search_paths(paths: Optional[list[str]]) -> list[Path]:
+    if paths:
+        return [Path(p).expanduser() for p in paths if p]
+    env_paths = os.getenv("EPUBLIC_LIBRARY_PATHS")
+    if env_paths:
+        return [Path(p).expanduser() for p in env_paths.split(os.pathsep) if p]
+    return []
 
 
-def _discover_book_paths() -> list[str]:
+def _discover_book_paths(search_paths: list[Path]) -> list[str]:
     supported_formats = {".epub", ".mobi", ".azw3", ".azw"}
     paths: list[str] = []
-    search_paths = _search_paths()
 
     for base_path in search_paths:
         if not base_path.exists():
@@ -193,7 +188,7 @@ def _discover_book_paths() -> list[str]:
     return paths
 
 
-def _library_signature_from_paths(paths: list[str]) -> dict:
+def _library_signature_from_paths(paths: list[str], roots: list[str]) -> dict:
     entries = []
     for path in paths:
         try:
@@ -202,7 +197,7 @@ def _library_signature_from_paths(paths: list[str]) -> dict:
             continue
         entries.append({"path": path, "mtime": stat.st_mtime, "size": stat.st_size})
     entries.sort(key=lambda e: e["path"])
-    return {"count": len(entries), "entries": entries}
+    return {"roots": roots, "count": len(entries), "entries": entries}
 
 
 def _load_metadata_cache(cache_path: Path) -> Optional[dict]:
@@ -220,10 +215,11 @@ def _save_metadata_cache(cache_path: Path, payload: dict) -> None:
 
 
 # Public API
-def scan_kindle_library() -> Dict[str, BookMetadata]:
+def scan_kindle_library(search_paths: list[str]) -> Dict[str, BookMetadata]:
     """Scan the library and parse all book metadata."""
     books = {}
-    for file_path in _discover_book_paths():
+    normalized_paths = _normalize_search_paths(search_paths)
+    for file_path in _discover_book_paths(normalized_paths):
         logger.info("Parsing metadata: %s", Path(file_path).name)
         book = parse_epub_metadata(file_path)
         if book:
@@ -250,23 +246,30 @@ def _metadata_cache_path() -> Path:
     return cache_dir / "metadata.json"
 
 
-def load_cached_books() -> tuple[Dict[str, BookMetadata], bool]:
+def load_cached_books(search_paths: list[str]) -> tuple[Dict[str, BookMetadata], bool]:
     """Load cached books without scanning the filesystem; may return empty."""
     cache_path = _metadata_cache_path()
     cached = _load_metadata_cache(cache_path)
     if cached:
+        cached_roots = cached.get("roots", [])
+        if cached_roots != search_paths:
+            return {}, False
         books = _books_from_cache_payload(cached)
         logger.info("Loaded metadata cache for %s books", len(books))
         return books, True
     return {}, False
 
 
-def refresh_books_cache() -> Dict[str, BookMetadata]:
+def refresh_books_cache(search_paths: list[str]) -> Dict[str, BookMetadata]:
     """Rebuild metadata cache with a full scan if the library has changed."""
     cache_path = _metadata_cache_path()
 
-    paths = _discover_book_paths()
-    signature = _library_signature_from_paths(paths)
+    normalized_paths = _normalize_search_paths(search_paths)
+    if not normalized_paths:
+        logger.error("No library paths configured; set EPUBLIC_LIBRARY_PATHS or pass paths in args")
+        return {}
+    paths = _discover_book_paths(normalized_paths)
+    signature = _library_signature_from_paths(paths, [str(p) for p in normalized_paths])
 
     cached = _load_metadata_cache(cache_path)
     if cached and cached.get("signature") == signature:
@@ -275,8 +278,9 @@ def refresh_books_cache() -> Dict[str, BookMetadata]:
         return books
 
     start = time.perf_counter()
-    books = scan_kindle_library()
+    books = scan_kindle_library(search_paths)
     payload = {
+        "roots": [str(p) for p in normalized_paths],
         "signature": signature,
         "books": [
             {
@@ -295,9 +299,10 @@ def refresh_books_cache() -> Dict[str, BookMetadata]:
     return books
 
 
-def get_books() -> tuple[Dict[str, BookMetadata], bool]:
+def get_books(search_paths: Optional[list[str]] = None) -> tuple[Dict[str, BookMetadata], bool]:
     """Get all books from Kindle library, using a metadata cache."""
-    books, from_cache = load_cached_books()
+    paths = search_paths or []
+    books, from_cache = load_cached_books(paths)
     if books:
         return books, from_cache
-    return refresh_books_cache(), False
+    return refresh_books_cache(paths), False
