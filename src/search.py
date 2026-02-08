@@ -301,7 +301,8 @@ def search_topic(
         if limit > 0:
             query_params.extend([limit, offset])
         elif offset:
-            query_sql += " OFFSET ?"
+            # SQLite requires LIMIT when using OFFSET.
+            query_sql += " LIMIT -1 OFFSET ?"
             query_params.append(offset)
 
         rows = cur.execute(query_sql, query_params).fetchall()

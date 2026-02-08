@@ -155,6 +155,13 @@ class TestSearchTopic:
         results = search_topic("testing", mock_books, limit=0)
         assert results["limit"] == 0
         assert len(results["results"]) == results["total_results"]
+
+    def test_search_topic_limit_zero_with_offset(self, mock_books):
+        """Limit of zero should still honor offset."""
+        results = search_topic("testing", mock_books, limit=0, offset=1)
+        assert results["limit"] == 0
+        assert results["offset"] == 1
+        assert len(results["results"]) == max(results["total_results"] - 1, 0)
     
     def test_search_topic_empty_book_text(self):
         """Test handling of book with empty text."""
