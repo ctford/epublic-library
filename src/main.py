@@ -88,6 +88,10 @@ def get_tools() -> list[Tool]:
                     "limit": {
                         "type": "integer",
                         "description": "Maximum number of results (default 10)"
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Number of results to skip before returning matches (default 0)"
                     }
                 },
                 "required": ["topic"]
@@ -149,10 +153,16 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
             book_filter = arguments.get("book_filter")
             author_filter = arguments.get("author_filter")
             limit = arguments.get("limit", 10)
+            offset = arguments.get("offset", 0)
+            if not isinstance(limit, int) or limit < 0:
+                return json.dumps({"error": "limit must be a non-negative integer"})
+            if not isinstance(offset, int) or offset < 0:
+                return json.dumps({"error": "offset must be a non-negative integer"})
             results = search_topic(
                 topic,
                 books_cache,
                 limit,
+                offset,
                 book_filter=book_filter,
                 author_filter=author_filter,
             )

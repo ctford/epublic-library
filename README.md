@@ -103,10 +103,14 @@ Find advice or content on a specific topic with attribution.
 
 **Example:**
 ```
-find_topic(topic="effective teams", author_filter="Marty Cagan")
+find_topic(topic="effective teams", author_filter="Marty Cagan", limit=5, offset=0)
 ```
 
-Returns passages with full attribution:
+Returns:
+- `total_results` with pagination metadata
+- `results` array of passages with full attribution
+
+Each result includes:
 - `text` (paragraph containing the match)
 - `book_title`
 - `author`

@@ -85,26 +85,26 @@ class TestSearchTopic:
     def test_search_topic_exact_match(self, mock_books):
         """Test finding exact topic match in text."""
         results = search_topic("testing", mock_books)
-        assert len(results) > 0
+        assert len(results["results"]) > 0
         # Should find "testing" in mock_book.text
     
     def test_search_topic_case_insensitive(self, mock_books):
         """Test that topic search is case-insensitive."""
         results = search_topic("TESTING", mock_books)
-        assert len(results) > 0
+        assert len(results["results"]) > 0
     
     def test_search_topic_word_boundary(self, mock_books):
         """Test that search respects word boundaries."""
         # Should find "testing" as a word, not within other words
         results = search_topic("testing", mock_books)
-        for result in results:
+        for result in results["results"]:
             assert "testing" in result['text'].lower()
     
     def test_search_topic_result_structure(self, mock_books):
         """Test that topic search results have correct structure."""
         results = search_topic("testing", mock_books)
-        assert len(results) > 0
-        result = results[0]
+        assert len(results["results"]) > 0
+        result = results["results"][0]
         
         assert 'text' in result
         assert 'book_title' in result
@@ -117,9 +117,9 @@ class TestSearchTopic:
     def test_search_topic_context_extracted(self, mock_books):
         """Test that context is extracted around match."""
         results = search_topic("testing", mock_books)
-        assert len(results) > 0
+        assert len(results["results"]) > 0
         
-        text = results[0]['text']
+        text = results["results"][0]['text']
         assert "testing" in text.lower()
         # Context should be substantial
         assert len(text) > 10
@@ -127,17 +127,27 @@ class TestSearchTopic:
     def test_search_topic_no_matches(self, mock_books):
         """Test topic search with no matching results."""
         results = search_topic("xyzabc123", mock_books)
-        assert len(results) == 0
+        assert len(results["results"]) == 0
+        assert results["total_results"] == 0
     
     def test_search_topic_limit(self, mock_books):
         """Test that result limit is enforced."""
         results = search_topic("testing", mock_books, limit=2)
-        assert len(results) <= 2
+        assert len(results["results"]) <= 2
+        assert results["limit"] == 2
     
     def test_search_topic_default_limit(self, mock_books):
         """Test default limit of 10."""
         results = search_topic("testing", mock_books)
-        assert len(results) <= 10
+        assert len(results["results"]) <= 10
+        assert results["limit"] == 10
+
+    def test_search_topic_offset(self, mock_books):
+        """Test that offset skips results."""
+        results = search_topic("testing", mock_books, limit=1, offset=1)
+        assert results["total_results"] >= 2
+        assert len(results["results"]) == 1
+        assert results["offset"] == 1
     
     def test_search_topic_empty_book_text(self):
         """Test handling of book with empty text."""
@@ -151,7 +161,7 @@ class TestSearchTopic:
         }
         
         results = search_topic("anything", books)
-        assert len(results) == 0
+        assert len(results["results"]) == 0
     
     def test_search_topic_default_author(self, mock_books):
         """Test that unknown authors default to 'Unknown'."""
@@ -165,30 +175,30 @@ class TestSearchTopic:
         }
         
         results = search_topic("testing", books)
-        if results:
-            assert results[0]['author'] == "Unknown"
+        if results["results"]:
+            assert results["results"][0]['author'] == "Unknown"
 
     def test_search_topic_book_filter(self, mock_books):
         """Test filtering results to a specific book."""
         results = search_topic("testing", mock_books, book_filter="Test Book")
-        assert len(results) > 0
-        assert all(result['book_title'] == "Test Book" for result in results)
+        assert len(results["results"]) > 0
+        assert all(result['book_title'] == "Test Book" for result in results["results"])
 
     def test_search_topic_book_filter_excludes(self, mock_books):
         """Test that book_filter excludes non-matching books."""
         results = search_topic("deployment", mock_books, book_filter="Test Book")
-        assert len(results) == 0
+        assert len(results["results"]) == 0
 
     def test_search_topic_author_filter(self, mock_books):
         """Test filtering results to a specific author."""
         results = search_topic("testing", mock_books, author_filter="Test Author")
-        assert len(results) > 0
-        assert all(result['author'] == "Test Author" for result in results)
+        assert len(results["results"]) > 0
+        assert all(result['author'] == "Test Author" for result in results["results"])
 
     def test_search_topic_author_filter_excludes(self, mock_books):
         """Test that author_filter excludes non-matching authors."""
         results = search_topic("deployment", mock_books, author_filter="Test Author")
-        assert len(results) == 0
+        assert len(results["results"]) == 0
 
 
 class TestSearchIntegration:
@@ -209,4 +219,4 @@ class TestSearchIntegration:
         """Test searching with special regex characters."""
         results = search_topic("code", mock_books)
         # Should not crash on special characters
-        assert isinstance(results, list)
+        assert isinstance(results, dict)

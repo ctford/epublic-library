@@ -76,9 +76,10 @@ def search_topic(
     query: str,
     books: Dict[str, BookMetadata],
     limit: int = 10,
+    offset: int = 0,
     book_filter: Optional[str] = None,
     author_filter: Optional[str] = None,
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """Search for topic in book content."""
     results = []
     query_lower = query.lower()
@@ -145,11 +146,16 @@ def search_topic(
                 'context_after': after,
                 'relevance_score': None,
             })
-            
-            if len(results) >= limit:
-                break
-        
-        if len(results) >= limit:
-            break
-    
-    return results
+
+    total_results = len(results)
+    if limit and limit > 0:
+        paged_results = results[offset:offset + limit]
+    else:
+        paged_results = results[offset:]
+
+    return {
+        "total_results": total_results,
+        "offset": offset,
+        "limit": limit,
+        "results": paged_results,
+    }
