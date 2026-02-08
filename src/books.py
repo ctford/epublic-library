@@ -44,7 +44,8 @@ class HTMLToText(HTMLParser):
         if tag in ['script', 'style']:
             self.skip = False
         elif tag in ['p', 'div', 'br']:
-            self.text.append('\n')
+            # Double newline improves paragraph detection for context extraction
+            self.text.append('\n\n')
     
     def handle_data(self, data):
         if not self.skip:
