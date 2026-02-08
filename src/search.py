@@ -1,12 +1,16 @@
 """Search functionality for books."""
 
+import logging
 import os
 import re
 import sqlite3
+import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable
 
 from platformdirs import user_cache_dir
+
+logger = logging.getLogger(__name__)
 from dataclasses import asdict, dataclass
 from books import BookMetadata
 
@@ -102,6 +106,11 @@ def _ensure_index(
     owns_conn = conn is None
     conn = conn or sqlite3.connect(index_path)
     try:
+        start = None
+        paragraph_count = 0
+        if rebuild or index_path == ":memory:" or (index_path != ":memory:" and not Path(index_path).exists()):
+            start = time.perf_counter()
+
         cur = conn.cursor()
         cur.execute("DROP TABLE IF EXISTS paragraphs_fts")
         cur.execute(
@@ -141,8 +150,12 @@ def _ensure_index(
                         after,
                     ),
                 )
+                paragraph_count += 1
 
         conn.commit()
+        if start is not None:
+            elapsed = time.perf_counter() - start
+            logger.info("Built FTS index with %s paragraphs in %.2fs", paragraph_count, elapsed)
     finally:
         if owns_conn:
             conn.close()
