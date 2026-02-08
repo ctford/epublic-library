@@ -41,7 +41,7 @@ async def refresh_books_cache_async():
     """Refresh metadata cache in the background."""
     global books_cache
     start = asyncio.get_event_loop().time()
-    updated = refresh_books_cache()
+    updated = await asyncio.to_thread(refresh_books_cache)
     if updated:
         books_cache = updated
     elapsed = asyncio.get_event_loop().time() - start
