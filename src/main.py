@@ -127,6 +127,8 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
     if not books_cache:
         return json.dumps({"error": "Books not loaded yet"})
 
+    start = asyncio.get_event_loop().time()
+
     def load_book_text(book):
         path = book.path
         if not path:
@@ -218,6 +220,9 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
     except Exception as e:
         logger.error(f"Error handling tool {name}: {e}")
         return json.dumps({"error": str(e)})
+    finally:
+        elapsed_ms = (asyncio.get_event_loop().time() - start) * 1000
+        logger.info("Tool call %s completed in %.1fms", name, elapsed_ms)
 
 
 async def main():
