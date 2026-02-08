@@ -2,13 +2,16 @@
 
 import os
 import re
+import json
 import logging
+import time
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Any
 from html.parser import HTMLParser
 import ebooklib
 from ebooklib import epub
+from platformdirs import user_cache_dir
 
 logger = logging.getLogger(__name__)
 
@@ -153,44 +156,116 @@ def parse_epub(path: str) -> BookMetadata | None:
     return metadata
 
 
-def scan_kindle_library() -> Dict[str, BookMetadata]:
-    """Scan Kindle library and parse all books."""
+def _search_paths() -> list[Path]:
     kindle_path = Path.home() / "Library" / "Application Support" / "Amazon" / "Kindle"
-    
-    books = {}
-    supported_formats = {'.epub', '.mobi', '.azw3', '.azw'}
-    
-    # Try primary Kindle path
     search_paths = [kindle_path]
-    
+
     # Also search Sync folder for testing
     sync_path = Path.home() / "Sync"
     if sync_path.exists():
         search_paths.append(sync_path)
-    
+
+    return search_paths
+
+
+def _discover_book_paths() -> list[str]:
+    supported_formats = {".epub", ".mobi", ".azw3", ".azw"}
+    paths: list[str] = []
+    search_paths = _search_paths()
+
     for base_path in search_paths:
         if not base_path.exists():
             continue
-        
-        # Search for ebook files
-        for root, dirs, files in os.walk(base_path):
+        for root, _, files in os.walk(base_path):
             for file in files:
-                if Path(file).suffix.lower() in supported_formats:
-                    file_path = os.path.join(root, file)
-                    
-                    # For now, focus on EPUB (easier to parse)
-                    if file.lower().endswith('.epub'):
-                        logger.info("Parsing metadata: %s", file)
-                        book = parse_epub_metadata(file_path)
-                        if book:
-                            books[book.title] = book
-    
-    if not books:
-        logger.warning("No books found in %s or %s", kindle_path, sync_path)
-    
+                if Path(file).suffix.lower() not in supported_formats:
+                    continue
+                if not file.lower().endswith(".epub"):
+                    continue
+                paths.append(os.path.join(root, file))
+
+    if not paths:
+        logger.warning("No books found in search paths: %s", ", ".join(str(p) for p in search_paths))
+
+    return paths
+
+
+def _books_signature_from_paths(paths: list[str]) -> dict:
+    entries = []
+    for path in paths:
+        try:
+            stat = Path(path).stat()
+        except OSError:
+            continue
+        entries.append({"path": path, "mtime": stat.st_mtime, "size": stat.st_size})
+    entries.sort(key=lambda e: e["path"])
+    return {"count": len(entries), "entries": entries}
+
+
+def _load_metadata_cache(cache_path: Path) -> Optional[dict]:
+    if not cache_path.exists():
+        return None
+    try:
+        return json.loads(cache_path.read_text())
+    except Exception:
+        return None
+
+
+def _save_metadata_cache(cache_path: Path, payload: dict) -> None:
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(json.dumps(payload, separators=(",", ":")))
+
+
+def scan_kindle_library() -> Dict[str, BookMetadata]:
+    """Scan Kindle library and parse all books."""
+    books = {}
+    for file_path in _discover_book_paths():
+        logger.info("Parsing metadata: %s", Path(file_path).name)
+        book = parse_epub_metadata(file_path)
+        if book:
+            books[book.title] = book
     return books
 
 
 def get_books() -> Dict[str, BookMetadata]:
-    """Get all books from Kindle library (with caching in production)."""
-    return scan_kindle_library()
+    """Get all books from Kindle library, using a metadata cache."""
+    cache_dir = Path(user_cache_dir("epublic-library"))
+    cache_path = cache_dir / "metadata.json"
+
+    paths = _discover_book_paths()
+    signature = _books_signature_from_paths(paths)
+
+    cached = _load_metadata_cache(cache_path)
+    if cached and cached.get("signature") == signature:
+        books = {}
+        for item in cached.get("books", []):
+            books[item["title"]] = BookMetadata(
+                title=item["title"],
+                author=item.get("author"),
+                published=item.get("published"),
+                path=item.get("path", ""),
+                toc=item.get("toc") or [],
+                text="",
+            )
+        logger.info("Loaded metadata cache for %s books", len(books))
+        return books
+
+    start = time.perf_counter()
+    books = scan_kindle_library()
+    payload = {
+        "signature": signature,
+        "books": [
+            {
+                "title": book.title,
+                "author": book.author,
+                "published": book.published,
+                "path": book.path,
+                "toc": book.toc,
+            }
+            for book in books.values()
+        ],
+    }
+    _save_metadata_cache(cache_path, payload)
+    elapsed = time.perf_counter() - start
+    logger.info("Rebuilt metadata cache for %s books in %.2fs", len(books), elapsed)
+    return books
