@@ -82,6 +82,31 @@ def search_topic(
     """Search for topic in book content."""
     results = []
     query_lower = query.lower()
+
+    def _normalize(text: str) -> str:
+        return re.sub(r'\s+', ' ', text).strip()
+
+    def _extract_paragraph(text: str, pos: int) -> tuple[str, Optional[str], Optional[str]]:
+        prev_break = text.rfind("\n\n", 0, pos)
+        start = 0 if prev_break == -1 else prev_break + 2
+        next_break = text.find("\n\n", pos)
+        end = len(text) if next_break == -1 else next_break
+
+        paragraph = _normalize(text[start:end])
+
+        before = None
+        if prev_break != -1:
+            prev_prev = text.rfind("\n\n", 0, prev_break)
+            before_start = 0 if prev_prev == -1 else prev_prev + 2
+            before = _normalize(text[before_start:prev_break])
+
+        after = None
+        if next_break != -1:
+            after_next = text.find("\n\n", next_break + 2)
+            after_end = len(text) if after_next == -1 else after_next
+            after = _normalize(text[next_break + 2:after_end])
+
+        return paragraph, before, after
     
     for title, book in books.items():
         if book_filter and not _fuzzy_match(book_filter, book.title):
@@ -104,27 +129,21 @@ def search_topic(
         
         # Extract context around each match
         for pos in matches[:3]:  # Limit to 3 matches per book
-            # Find start of context (250 chars before)
-            start = max(0, pos - 250)
-            # Find end of context (250 chars after)
-            end = min(len(book.text), pos + 250 + len(query))
-            
-            context = book.text[start:end].strip()
-            
-            # Clean up whitespace
-            context = re.sub(r'\s+', ' ', context)
-            
+            paragraph, before, after = _extract_paragraph(book.text, pos)
+
             # Try to find which chapter this is in
-            chapter = "Unknown section"
+            location = "Unknown section"
             if book.toc:
-                chapter = book.toc[0][0]  # Default to first chapter
+                location = book.toc[0][0]  # Default to first chapter
             
             results.append({
-                'book': book.title,
+                'text': paragraph,
+                'book_title': book.title,
                 'author': book.author or 'Unknown',
-                'chapter': chapter,
-                'quote': context,
-                'relevance': 'found'
+                'location': location,
+                'context_before': before,
+                'context_after': after,
+                'relevance_score': None,
             })
             
             if len(results) >= limit:

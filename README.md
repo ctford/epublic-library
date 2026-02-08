@@ -107,10 +107,11 @@ find_topic(topic="effective teams", author_filter="Marty Cagan")
 ```
 
 Returns passages with full attribution:
-- Book title
-- Author
-- Chapter/section
-- Exact quote with context
+- `text` (paragraph containing the match)
+- `book_title`
+- `author`
+- `location` (chapter/section when available)
+- `context_before` / `context_after`
 
 ## Implementation Notes
 

@@ -98,7 +98,7 @@ class TestSearchTopic:
         # Should find "testing" as a word, not within other words
         results = search_topic("testing", mock_books)
         for result in results:
-            assert "testing" in result['quote'].lower()
+            assert "testing" in result['text'].lower()
     
     def test_search_topic_result_structure(self, mock_books):
         """Test that topic search results have correct structure."""
@@ -106,21 +106,23 @@ class TestSearchTopic:
         assert len(results) > 0
         result = results[0]
         
-        assert 'book' in result
+        assert 'text' in result
+        assert 'book_title' in result
         assert 'author' in result
-        assert 'chapter' in result
-        assert 'quote' in result
-        assert 'relevance' in result
+        assert 'location' in result
+        assert 'context_before' in result
+        assert 'context_after' in result
+        assert 'relevance_score' in result
     
     def test_search_topic_context_extracted(self, mock_books):
         """Test that context is extracted around match."""
         results = search_topic("testing", mock_books)
         assert len(results) > 0
         
-        quote = results[0]['quote']
-        assert "testing" in quote.lower()
+        text = results[0]['text']
+        assert "testing" in text.lower()
         # Context should be substantial
-        assert len(quote) > 10
+        assert len(text) > 10
     
     def test_search_topic_no_matches(self, mock_books):
         """Test topic search with no matching results."""
@@ -170,7 +172,7 @@ class TestSearchTopic:
         """Test filtering results to a specific book."""
         results = search_topic("testing", mock_books, book_filter="Test Book")
         assert len(results) > 0
-        assert all(result['book'] == "Test Book" for result in results)
+        assert all(result['book_title'] == "Test Book" for result in results)
 
     def test_search_topic_book_filter_excludes(self, mock_books):
         """Test that book_filter excludes non-matching books."""
