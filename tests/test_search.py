@@ -232,6 +232,15 @@ class TestSearchTopic:
         )
         assert len(results["results"]) > 0
 
+    def test_search_topic_multiple_topics(self, mock_books):
+        """Multiple topics should match any topic (OR)."""
+        results = search_topic(
+            None,
+            mock_books,
+            topics=["testing", "deployment"],
+        )
+        assert len(results["results"]) > 0
+
 
 class TestSearchIntegration:
     """Integration tests combining metadata and topic search."""

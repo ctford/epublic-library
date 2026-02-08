@@ -116,6 +116,11 @@ find_topic(topic="AI consciousness", author_filter="Martha Wells", book_filter="
 find_topic(topic="functional programming", author_filter="Hickey", match_type="fuzzy")
 ```
 
+**Multiple topics (OR):**
+```
+find_topic(topics=["testing", "quality assurance", "TDD"], limit=15)
+```
+
 Returns:
 - `total_results` with pagination metadata
 - `results` array of passages with full attribution
