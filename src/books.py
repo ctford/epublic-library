@@ -227,8 +227,34 @@ def scan_kindle_library() -> Dict[str, BookMetadata]:
     return books
 
 
-def get_books() -> Dict[str, BookMetadata]:
-    """Get all books from Kindle library, using a metadata cache."""
+def _books_from_cache_payload(payload: dict) -> Dict[str, BookMetadata]:
+    books = {}
+    for item in payload.get("books", []):
+        books[item["title"]] = BookMetadata(
+            title=item["title"],
+            author=item.get("author"),
+            published=item.get("published"),
+            path=item.get("path", ""),
+            toc=item.get("toc") or [],
+            text="",
+        )
+    return books
+
+
+def load_cached_books() -> Dict[str, BookMetadata]:
+    """Load cached books without scanning the filesystem."""
+    cache_dir = Path(user_cache_dir("epublic-library"))
+    cache_path = cache_dir / "metadata.json"
+    cached = _load_metadata_cache(cache_path)
+    if cached:
+        books = _books_from_cache_payload(cached)
+        logger.info("Loaded metadata cache for %s books", len(books))
+        return books
+    return {}
+
+
+def refresh_books_cache() -> Dict[str, BookMetadata]:
+    """Rebuild metadata cache if the library has changed."""
     cache_dir = Path(user_cache_dir("epublic-library"))
     cache_path = cache_dir / "metadata.json"
 
@@ -237,17 +263,8 @@ def get_books() -> Dict[str, BookMetadata]:
 
     cached = _load_metadata_cache(cache_path)
     if cached and cached.get("signature") == signature:
-        books = {}
-        for item in cached.get("books", []):
-            books[item["title"]] = BookMetadata(
-                title=item["title"],
-                author=item.get("author"),
-                published=item.get("published"),
-                path=item.get("path", ""),
-                toc=item.get("toc") or [],
-                text="",
-            )
-        logger.info("Loaded metadata cache for %s books", len(books))
+        books = _books_from_cache_payload(cached)
+        logger.info("Metadata cache is up to date")
         return books
 
     start = time.perf_counter()
@@ -269,3 +286,11 @@ def get_books() -> Dict[str, BookMetadata]:
     elapsed = time.perf_counter() - start
     logger.info("Rebuilt metadata cache for %s books in %.2fs", len(books), elapsed)
     return books
+
+
+def get_books() -> Dict[str, BookMetadata]:
+    """Get all books from Kindle library, using a metadata cache."""
+    books = load_cached_books()
+    if books:
+        return books
+    return refresh_books_cache()

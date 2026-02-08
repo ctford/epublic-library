@@ -11,7 +11,7 @@ import logging
 
 from collections import OrderedDict
 
-from books import get_books, parse_epub_text
+from books import get_books, parse_epub_text, refresh_books_cache
 from search import search_metadata, search_topic, prebuild_index
 
 # Set up logging
@@ -33,6 +33,18 @@ async def load_books():
     books_cache = get_books()
     elapsed = asyncio.get_event_loop().time() - start
     logger.info("Loaded %s books in %.2fs", len(books_cache), elapsed)
+    asyncio.create_task(refresh_books_cache_async())
+
+
+async def refresh_books_cache_async():
+    """Refresh metadata cache in the background."""
+    global books_cache
+    start = asyncio.get_event_loop().time()
+    updated = refresh_books_cache()
+    if updated:
+        books_cache = updated
+    elapsed = asyncio.get_event_loop().time() - start
+    logger.info("Metadata refresh completed in %.2fs", elapsed)
 
 
 def get_tools() -> list[Tool]:
