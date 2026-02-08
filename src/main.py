@@ -202,7 +202,10 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
         elif name == "search_books":
             query = arguments.get("query", "")
             results = search_metadata(query, local_books)
-            return json.dumps(results, indent=2)
+            return json.dumps(
+                {"query": query, "total": len(results), "results": results},
+                indent=2,
+            )
         
         elif name == "find_topic":
             topic = arguments.get("topic", "")
