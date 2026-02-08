@@ -3,9 +3,17 @@
 import pytest
 from pathlib import Path
 import sys
+import os
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+
+
+@pytest.fixture(autouse=True)
+def _use_memory_index(monkeypatch):
+    """Force the SQLite index to be in-memory for tests."""
+    monkeypatch.setenv("EPUBLIC_INDEX_PATH", ":memory:")
+    monkeypatch.setenv("EPUBLIC_REBUILD_INDEX", "1")
 
 
 @pytest.fixture

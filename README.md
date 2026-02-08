@@ -146,8 +146,9 @@ Each result includes:
 ## Performance Notes
 
 - Metadata is parsed and cached in memory on startup.
-- Full text is parsed on demand during `find_topic` and cached with a small LRU (most recent 20 books).
-- Searches are linear scans over available text; large libraries may increase search latency.
+- Full-text search uses a SQLite FTS index stored on disk.
+- Set `EPUBLIC_INDEX_PATH` to choose the index location (default `data/index.sqlite`).
+- Set `EPUBLIC_REBUILD_INDEX=1` to force a rebuild.
 
 ## Troubleshooting
 

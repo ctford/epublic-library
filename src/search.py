@@ -1,6 +1,9 @@
 """Search functionality for books."""
 
+import os
 import re
+import sqlite3
+from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable
 from dataclasses import asdict, dataclass
 from books import BookMetadata
@@ -72,6 +75,82 @@ def search_metadata(query: str, books: Dict[str, BookMetadata],
     return results
 
 
+def _normalize(text: str) -> str:
+    return re.sub(r'\s+', ' ', text).strip()
+
+
+def _split_paragraphs(text: str) -> list[str]:
+    parts = [p.strip() for p in text.split("\n\n")]
+    return [p for p in parts if p]
+
+
+def _ensure_index(
+    books: Dict[str, BookMetadata],
+    text_loader: Optional[Callable[[BookMetadata], str]],
+    index_path: str,
+    conn: Optional[sqlite3.Connection] = None,
+) -> None:
+    if index_path != ":memory:":
+        Path(index_path).parent.mkdir(parents=True, exist_ok=True)
+
+    rebuild = os.getenv("EPUBLIC_REBUILD_INDEX") == "1"
+    if not rebuild and index_path != ":memory:" and Path(index_path).exists():
+        return
+
+    owns_conn = conn is None
+    conn = conn or sqlite3.connect(index_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("DROP TABLE IF EXISTS paragraphs_fts")
+        cur.execute(
+            "CREATE VIRTUAL TABLE paragraphs_fts USING fts5("
+            "text, book_title, author, location, context_before, context_after)"
+        )
+
+        insert_sql = (
+            "INSERT INTO paragraphs_fts "
+            "(text, book_title, author, location, context_before, context_after) "
+            "VALUES (?, ?, ?, ?, ?, ?)"
+        )
+
+        for book in books.values():
+            text = book.text
+            if not text and text_loader:
+                text = text_loader(book)
+            if not text:
+                continue
+
+            paragraphs = _split_paragraphs(text)
+            if not paragraphs:
+                continue
+
+            for i, paragraph in enumerate(paragraphs):
+                before = _normalize(paragraphs[i - 1]) if i > 0 else ""
+                after = _normalize(paragraphs[i + 1]) if i + 1 < len(paragraphs) else ""
+                location = book.toc[0][0] if book.toc else "Unknown section"
+                cur.execute(
+                    insert_sql,
+                    (
+                        _normalize(paragraph),
+                        book.title,
+                        book.author or "Unknown",
+                        location,
+                        before,
+                        after,
+                    ),
+                )
+
+        conn.commit()
+    finally:
+        if owns_conn:
+            conn.close()
+
+
+def _build_fts_query(topic_list: list[str]) -> str:
+    terms = [f"\"{t}\"" for t in topic_list if t]
+    return " OR ".join(terms)
+
+
 def search_topic(
     query: str | None,
     books: Dict[str, BookMetadata],
@@ -82,9 +161,9 @@ def search_topic(
     match_type: str = "fuzzy",
     topics: Optional[list[str]] = None,
     text_loader: Optional[Callable[[BookMetadata], str]] = None,
+    index_path: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Search for topic in book content."""
-    results = []
+    """Search for topic in book content using SQLite FTS."""
     if query is not None:
         topic_list = [query]
     else:
@@ -93,7 +172,6 @@ def search_topic(
     if topics:
         topic_list = list(topics)
 
-    # De-duplicate topics while preserving order
     seen_topics = set()
     deduped_topics = []
     for topic in topic_list:
@@ -113,114 +191,87 @@ def search_topic(
     if match_type not in {"exact", "fuzzy"}:
         raise ValueError("match_type must be 'exact' or 'fuzzy'")
 
-    filter_matcher = _fuzzy_match if match_type == "fuzzy" else _exact_match
-
-    def _normalize(text: str) -> str:
-        return re.sub(r'\s+', ' ', text).strip()
-
-    def _extract_paragraph(text: str, pos: int) -> tuple[str, Optional[str], Optional[str]]:
-        prev_break = text.rfind("\n\n", 0, pos)
-        start = 0 if prev_break == -1 else prev_break + 2
-        next_break = text.find("\n\n", pos)
-        end = len(text) if next_break == -1 else next_break
-
-        paragraph = _normalize(text[start:end])
-
-        before = None
-        if prev_break != -1:
-            prev_prev = text.rfind("\n\n", 0, prev_break)
-            before_start = 0 if prev_prev == -1 else prev_prev + 2
-            before = _normalize(text[before_start:prev_break])
-
-        after = None
-        if next_break != -1:
-            after_next = text.find("\n\n", next_break + 2)
-            after_end = len(text) if after_next == -1 else after_next
-            after = _normalize(text[next_break + 2:after_end])
-
-        return paragraph, before, after
-    
-    for title, book in books.items():
-        if book_filter and not filter_matcher(book_filter, book.title):
-            continue
-        if author_filter:
-            if not book.author or not filter_matcher(author_filter, book.author):
-                continue
-
-        text = book.text
-        if not text and text_loader:
-            text = text_loader(book)
-        if not text:
-            continue
-        
-        # Find all occurrences of the query
-        text_lower = text.lower()
-        matches = []
-        
-        # Simple regex search for the query/topics as whole words
-        topic_patterns = []
-        for topic in topic_list:
-            if not topic:
-                continue
-            topic_patterns.append(r'\b' + re.escape(topic.lower()) + r'\b')
-
-        if not topic_patterns:
-            continue
-
-        combined_pattern = "(" + "|".join(topic_patterns) + ")"
-        for match in re.finditer(combined_pattern, text_lower, re.IGNORECASE):
-            matches.append(match.start())
-        
-        # Extract context around each match
-        for pos in matches[:3]:  # Limit to 3 matches per book
-            paragraph, before, after = _extract_paragraph(text, pos)
-            paragraph_lower = paragraph.lower()
-
-            matched_topics = []
-            for topic in topic_list:
-                if not topic:
-                    continue
-                topic_pattern = r'\b' + re.escape(topic.lower()) + r'\b'
-                if re.search(topic_pattern, paragraph_lower, re.IGNORECASE):
-                    matched_topics.append(topic)
-
-            coverage = (len(matched_topics) / len(topic_list)) if topic_list else 0.0
-            match_count = len(re.findall(combined_pattern, paragraph_lower, re.IGNORECASE))
-            density = match_count / max(1.0, len(paragraph) / 1000.0)
-            relevance_score = round(0.7 * coverage + 0.3 * min(density, 1.0), 3)
-
-            # Try to find which chapter this is in
-            location = "Unknown section"
-            if book.toc:
-                location = book.toc[0][0]  # Default to first chapter
-            
-            results.append({
-                'text': paragraph,
-                'book_title': book.title,
-                'author': book.author or 'Unknown',
-                'location': location,
-                'context_before': before,
-                'context_after': after,
-                'relevance_score': relevance_score,
-            })
-
-    total_results = len(results)
-    results.sort(
-        key=lambda r: (
-            r.get("relevance_score", 0),
-            r.get("book_title", ""),
-            r.get("text", ""),
-        ),
-        reverse=True,
-    )
-    if limit <= 0:
-        paged_results = results[offset:]
+    index_path = index_path or os.getenv("EPUBLIC_INDEX_PATH", "data/index.sqlite")
+    if index_path == ":memory:":
+        conn = sqlite3.connect(":memory:")
+        _ensure_index(books, text_loader, index_path, conn=conn)
     else:
-        paged_results = results[offset:offset + limit]
+        _ensure_index(books, text_loader, index_path)
+        conn = sqlite3.connect(index_path)
 
-    return {
-        "total_results": total_results,
-        "offset": offset,
-        "limit": limit,
-        "results": paged_results,
-    }
+    try:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+
+        where = ["paragraphs_fts MATCH ?"]
+        params: list[Any] = [_build_fts_query(topic_list)]
+
+        if book_filter:
+            if match_type == "exact":
+                where.append("book_title = ? COLLATE NOCASE")
+                params.append(book_filter)
+            else:
+                where.append("book_title LIKE ?")
+                params.append(f"%{book_filter}%")
+
+        if author_filter:
+            if match_type == "exact":
+                where.append("author = ? COLLATE NOCASE")
+                params.append(author_filter)
+            else:
+                where.append("author LIKE ?")
+                params.append(f"%{author_filter}%")
+
+        where_sql = " AND ".join(where)
+
+        total_sql = f"SELECT COUNT(*) FROM paragraphs_fts WHERE {where_sql}"
+        total_results = cur.execute(total_sql, params).fetchone()[0]
+
+        limit_sql = "" if limit <= 0 else " LIMIT ? OFFSET ?"
+        query_sql = (
+            "SELECT text, book_title, author, location, context_before, context_after, "
+            "bm25(paragraphs_fts) AS score "
+            f"FROM paragraphs_fts WHERE {where_sql} "
+            "ORDER BY score ASC" + limit_sql
+        )
+
+        query_params = list(params)
+        if limit > 0:
+            query_params.extend([limit, offset])
+        elif offset:
+            query_sql += " OFFSET ?"
+            query_params.append(offset)
+
+        rows = cur.execute(query_sql, query_params).fetchall()
+        results = []
+        for row in rows:
+            score = row["score"]
+            if score is None:
+                relevance_score = 0.0
+            else:
+                relevance_score = 1.0 / (1.0 + score)
+                if relevance_score < 0.0:
+                    relevance_score = 0.0
+                if relevance_score > 1.0:
+                    relevance_score = 1.0
+                relevance_score = round(relevance_score, 3)
+            results.append(
+                {
+                    "text": row["text"],
+                    "book_title": row["book_title"],
+                    "author": row["author"],
+                    "location": row["location"],
+                    "context_before": row["context_before"],
+                    "context_after": row["context_after"],
+                    "relevance_score": relevance_score,
+                }
+            )
+
+        return {
+            "total_results": total_results,
+            "offset": offset,
+            "limit": limit,
+            "results": results,
+        }
+    finally:
+        conn.close()
