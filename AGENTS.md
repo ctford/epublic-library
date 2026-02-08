@@ -56,3 +56,30 @@ If personal paths are discovered:
 2. Update all documentation to use generic placeholders
 3. Amend commits containing personal paths
 4. Run `git reflog expire --expire=now --all && git gc --prune=now` to permanently remove old commits
+
+## Verification Helpers
+
+### Direct Invoke (Measure Metadata Cache)
+Run from the repo root to compare first vs second load times:
+```bash
+cd /path/to/epublic-library
+./venv/bin/python3 - <<'PY'
+import time
+from books import get_books
+
+def run(label):
+    start = time.perf_counter()
+    books = get_books()
+    elapsed = time.perf_counter() - start
+    print(f"{label}: {len(books)} books in {elapsed:.2f}s")
+
+run("first")
+run("second")
+PY
+```
+
+### Tail Logs (After Claude Desktop Test)
+Use the standard Claude Desktop log location:
+```bash
+tail -n 200 ~/Library/Logs/Claude/mcp-server-epublic.log
+```
