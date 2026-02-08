@@ -1,7 +1,7 @@
 """Search functionality for books."""
 
 import re
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 from dataclasses import asdict, dataclass
 from books import BookMetadata
 
@@ -81,6 +81,7 @@ def search_topic(
     author_filter: Optional[str] = None,
     match_type: str = "fuzzy",
     topics: Optional[list[str]] = None,
+    text_loader: Optional[Callable[[BookMetadata], str]] = None,
 ) -> Dict[str, Any]:
     """Search for topic in book content."""
     results = []
@@ -137,11 +138,14 @@ def search_topic(
             if not book.author or not filter_matcher(author_filter, book.author):
                 continue
 
-        if not book.text:
+        text = book.text
+        if not text and text_loader:
+            text = text_loader(book)
+        if not text:
             continue
         
         # Find all occurrences of the query
-        text_lower = book.text.lower()
+        text_lower = text.lower()
         matches = []
         
         # Simple regex search for the query/topics as whole words
@@ -160,7 +164,7 @@ def search_topic(
         
         # Extract context around each match
         for pos in matches[:3]:  # Limit to 3 matches per book
-            paragraph, before, after = _extract_paragraph(book.text, pos)
+            paragraph, before, after = _extract_paragraph(text, pos)
 
             # Try to find which chapter this is in
             location = "Unknown section"

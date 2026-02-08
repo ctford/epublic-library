@@ -142,8 +142,9 @@ Each result includes:
 
 ## Performance Notes
 
-- All books are parsed and cached in memory on startup.
-- Searches are linear scans over cached text; large libraries may increase startup time and search latency.
+- Metadata is parsed and cached in memory on startup.
+- Full text is parsed on demand during `find_topic` and cached with a small LRU (most recent 20 books).
+- Searches are linear scans over available text; large libraries may increase search latency.
 
 ## Troubleshooting
 

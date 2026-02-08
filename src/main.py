@@ -9,7 +9,9 @@ from mcp.server.stdio import stdio_server
 from mcp.types import ServerCapabilities, Tool, TextContent, ToolsCapability
 import logging
 
-from books import get_books
+from collections import OrderedDict
+
+from books import get_books, parse_epub_text
 from search import search_metadata, search_topic
 
 # Set up logging
@@ -18,6 +20,9 @@ logger = logging.getLogger(__name__)
 
 # Global book cache
 books_cache = None
+# Simple LRU cache for parsed book text
+text_cache = OrderedDict()
+TEXT_CACHE_MAX_BOOKS = 20
 
 
 async def load_books():
@@ -119,6 +124,21 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
     
     if not books_cache:
         return json.dumps({"error": "Books not loaded yet"})
+
+    def load_book_text(book):
+        path = book.path
+        if not path:
+            return ""
+        if path in text_cache:
+            text_cache.move_to_end(path)
+            return text_cache[path]
+
+        text = parse_epub_text(path)
+        text_cache[path] = text
+        text_cache.move_to_end(path)
+        while len(text_cache) > TEXT_CACHE_MAX_BOOKS:
+            text_cache.popitem(last=False)
+        return text
     
     try:
         if name == "list_books":
@@ -186,6 +206,7 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
                 author_filter=author_filter,
                 match_type=match_type,
                 topics=topics,
+                text_loader=load_book_text,
             )
             return json.dumps(results, indent=2)
         
