@@ -130,7 +130,7 @@ def _ensure_index(
     text_loader: Optional[Callable[[BookMetadata], str]],
     index_path: str,
     conn: Optional[sqlite3.Connection] = None,
-) -> None:
+) -> bool:
     if index_path != ":memory:":
         Path(index_path).parent.mkdir(parents=True, exist_ok=True)
 
@@ -142,10 +142,11 @@ def _ensure_index(
     needs_rebuild = previous != signature
 
     if not rebuild and not needs_rebuild and index_path != ":memory:" and index_file.exists():
-        return
+        return False
 
     owns_conn = conn is None
     conn = conn or sqlite3.connect(index_path)
+    rebuilt = True
     try:
         start = None
         paragraph_count = 0
@@ -202,6 +203,7 @@ def _ensure_index(
     finally:
         if owns_conn:
             conn.close()
+    return rebuilt
 
 
 def _escape_fts_phrase(term: str) -> str:
@@ -265,12 +267,16 @@ def search_topic(
         index_path = str(Path(cache_dir) / "index.sqlite")
     if index_path == ":memory:":
         conn = sqlite3.connect(":memory:")
-        _ensure_index(books, text_loader, index_path, conn=conn)
+        rebuilt = _ensure_index(books, text_loader, index_path, conn=conn)
     else:
-        _ensure_index(books, text_loader, index_path)
+        rebuilt = _ensure_index(books, text_loader, index_path)
         conn = sqlite3.connect(index_path)
 
     try:
+        if rebuilt:
+            logger.warning(
+                "FTS index was rebuilt on demand; first query may be slow"
+            )
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
 
@@ -347,3 +353,21 @@ def search_topic(
         }
     finally:
         conn.close()
+
+
+def prebuild_index(
+    books: Dict[str, BookMetadata],
+    text_loader: Optional[Callable[[BookMetadata], str]] = None,
+    index_path: Optional[str] = None,
+) -> bool:
+    if not index_path:
+        index_path = os.getenv("EPUBLIC_INDEX_PATH")
+    if not index_path:
+        cache_dir = user_cache_dir("epublic-library")
+        index_path = str(Path(cache_dir) / "index.sqlite")
+    rebuilt = _ensure_index(books, text_loader, index_path)
+    if rebuilt:
+        logger.info("FTS index rebuilt on startup")
+    else:
+        logger.info("FTS index is up to date")
+    return rebuilt

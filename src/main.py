@@ -12,7 +12,7 @@ import logging
 from collections import OrderedDict
 
 from books import get_books, parse_epub_text
-from search import search_metadata, search_topic
+from search import search_metadata, search_topic, prebuild_index
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -229,6 +229,7 @@ async def main():
     """Start the MCP server."""
     # Load books on startup
     await load_books()
+    prebuild_index(books_cache, text_loader=parse_epub_text)
     
     # Create MCP server
     server = Server("epublic-library")
