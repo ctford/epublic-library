@@ -103,7 +103,10 @@ def get_tools() -> list[Tool]:
                         "description": "Optional list of topics; matches any topic (OR logic)"
                     }
                 },
-                "required": []
+                "anyOf": [
+                    {"required": ["topic"]},
+                    {"required": ["topics"]}
+                ]
             }
         )
     ]
@@ -165,6 +168,8 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
             offset = arguments.get("offset", 0)
             match_type = arguments.get("match_type", "fuzzy")
             topics = arguments.get("topics")
+            if not topic and not topics:
+                return json.dumps({"error": "topic or topics is required"})
             if not isinstance(limit, int) or limit < 0:
                 return json.dumps({"error": "limit must be a non-negative integer"})
             if not isinstance(offset, int) or offset < 0:
