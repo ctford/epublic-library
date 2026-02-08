@@ -2,12 +2,15 @@
 
 import os
 import re
+import logging
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Any
 from html.parser import HTMLParser
 import ebooklib
 from ebooklib import epub
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -56,7 +59,7 @@ def parse_epub(path: str) -> BookMetadata:
     try:
         book = epub.read_epub(path)
     except Exception as e:
-        print(f"Error reading EPUB {path}: {e}")
+        logger.error("Error reading EPUB %s: %s", Path(path).name, e)
         return None
     
     # Extract metadata
@@ -155,13 +158,13 @@ def scan_kindle_library() -> Dict[str, BookMetadata]:
                     
                     # For now, focus on EPUB (easier to parse)
                     if file.lower().endswith('.epub'):
-                        print(f"Parsing: {file}")
+                        logger.info("Parsing: %s", file)
                         book = parse_epub(file_path)
                         if book:
                             books[book.title] = book
     
     if not books:
-        print(f"No books found in {kindle_path} or {sync_path}")
+        logger.warning("No books found in %s or %s", kindle_path, sync_path)
     
     return books
 

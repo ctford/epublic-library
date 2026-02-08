@@ -4,7 +4,9 @@ import asyncio
 import json
 from typing import Any
 from mcp.server import Server
-from mcp.types import Tool, TextContent, ToolResult
+from mcp.server.models import InitializationOptions
+from mcp.server.stdio import stdio_server
+from mcp.types import ServerCapabilities, Tool, TextContent, ToolsCapability
 import logging
 
 from books import get_books
@@ -112,11 +114,18 @@ async def main():
         result = await handle_call_tool(name, arguments)
         return [TextContent(type="text", text=result)]
     
-    # Run the server
-    async with server:
-        logger.info("Kindle MCP server started")
-        while True:
-            await asyncio.sleep(1)
+    # Run the server over stdio
+    logger.info("Kindle MCP server started")
+    async with stdio_server() as (read_stream, write_stream):
+        await server.run(
+            read_stream,
+            write_stream,
+            InitializationOptions(
+                server_name="epublic-library",
+                server_version="0.1.0",
+                capabilities=ServerCapabilities(tools=ToolsCapability()),
+            ),
+        )
 
 
 if __name__ == "__main__":
