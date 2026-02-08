@@ -88,7 +88,7 @@ def get_tools() -> list[Tool]:
                     "include_fields": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Optional fields to include: author, published, path"
+                        "description": "Optional fields to include: author, published"
                     }
                 }
             }
@@ -203,8 +203,6 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
                     entry["author"] = book.author or "Unknown"
                 if "published" in include_fields:
                     entry["published"] = book.published or "Unknown"
-                if "path" in include_fields:
-                    entry["path"] = book.path
                 results.append(entry)
 
             return json.dumps(
