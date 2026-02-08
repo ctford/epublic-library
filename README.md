@@ -133,6 +133,7 @@ Each result includes:
 - `author`
 - `location` (chapter/section when available)
 - `context_before` / `context_after`
+- `relevance_score` (0.0–1.0)
 
 ## Implementation Notes
 

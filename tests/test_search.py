@@ -112,6 +112,8 @@ class TestSearchTopic:
         assert 'location' in result
         assert 'context_before' in result
         assert 'context_after' in result
+        assert 'relevance_score' in result
+        assert 0.0 <= result['relevance_score'] <= 1.0
     
     def test_search_topic_context_extracted(self, mock_books):
         """Test that context is extracted around match."""

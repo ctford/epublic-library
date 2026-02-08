@@ -93,6 +93,15 @@ def search_topic(
     if topics:
         topic_list = list(topics)
 
+    # De-duplicate topics while preserving order
+    seen_topics = set()
+    deduped_topics = []
+    for topic in topic_list:
+        if topic not in seen_topics:
+            deduped_topics.append(topic)
+            seen_topics.add(topic)
+    topic_list = deduped_topics
+
     if not topic_list:
         return {
             "total_results": 0,
@@ -165,6 +174,20 @@ def search_topic(
         # Extract context around each match
         for pos in matches[:3]:  # Limit to 3 matches per book
             paragraph, before, after = _extract_paragraph(text, pos)
+            paragraph_lower = paragraph.lower()
+
+            matched_topics = []
+            for topic in topic_list:
+                if not topic:
+                    continue
+                topic_pattern = r'\b' + re.escape(topic.lower()) + r'\b'
+                if re.search(topic_pattern, paragraph_lower, re.IGNORECASE):
+                    matched_topics.append(topic)
+
+            coverage = (len(matched_topics) / len(topic_list)) if topic_list else 0.0
+            match_count = len(re.findall(combined_pattern, paragraph_lower, re.IGNORECASE))
+            density = match_count / max(1.0, len(paragraph) / 1000.0)
+            relevance_score = round(0.7 * coverage + 0.3 * min(density, 1.0), 3)
 
             # Try to find which chapter this is in
             location = "Unknown section"
@@ -178,6 +201,7 @@ def search_topic(
                 'location': location,
                 'context_before': before,
                 'context_after': after,
+                'relevance_score': relevance_score,
             })
 
     total_results = len(results)
