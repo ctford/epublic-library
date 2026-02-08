@@ -204,8 +204,17 @@ def _ensure_index(
             conn.close()
 
 
+def _escape_fts_phrase(term: str) -> str:
+    term = term.strip()
+    if not term:
+        return ""
+    # Escape double quotes inside an FTS phrase by doubling them.
+    term = term.replace('"', '""')
+    return f"\"{term}\""
+
+
 def _build_fts_query(topic_list: list[str]) -> str:
-    terms = [f"\"{t}\"" for t in topic_list if t]
+    terms = [_escape_fts_phrase(t) for t in topic_list if t and t.strip()]
     return " OR ".join(terms)
 
 

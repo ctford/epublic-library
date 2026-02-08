@@ -288,7 +288,7 @@ class TestSearchIntegration:
         assert len(topic_results) > 0
     
     def test_search_with_special_characters(self, mock_books):
-        """Test searching with special regex characters."""
-        results = search_topic("code", mock_books)
+        """Test searching with special FTS characters."""
+        results = search_topic('foo"bar', mock_books)
         # Should not crash on special characters
         assert isinstance(results, dict)
