@@ -99,9 +99,11 @@ def parse_epub_metadata(path: str) -> BookMetadata | None:
         for item in book.toc:
             if isinstance(item, tuple):
                 title_text, uid = item
-                toc.append((str(title_text), str(uid), 0))
+                title_value = getattr(title_text, "title", title_text)
+                toc.append((str(title_value), str(uid), 0))
             else:
-                toc.append((str(item.title) if hasattr(item, 'title') else str(item), "", 0))
+                title_value = item.title if hasattr(item, "title") else item
+                toc.append((str(title_value), "", 0))
 
     return BookMetadata(
         title=title,
@@ -230,12 +232,21 @@ def scan_kindle_library(search_paths: list[str]) -> Dict[str, BookMetadata]:
 def _books_from_cache_payload(payload: dict) -> Dict[str, BookMetadata]:
     books = {}
     for item in payload.get("books", []):
+        raw_toc = item.get("toc") or []
+        normalized_toc = []
+        for entry in raw_toc:
+            if not isinstance(entry, (list, tuple)) or len(entry) < 1:
+                continue
+            title = str(entry[0])
+            uid = str(entry[1]) if len(entry) > 1 else ""
+            depth = entry[2] if len(entry) > 2 else 0
+            normalized_toc.append((title, uid, depth))
         books[item["title"]] = BookMetadata(
             title=item["title"],
             author=item.get("author"),
             published=item.get("published"),
             path=item.get("path", ""),
-            toc=item.get("toc") or [],
+            toc=normalized_toc,
             text="",
         )
     return books
