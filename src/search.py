@@ -178,7 +178,6 @@ def search_topic(
                 'location': location,
                 'context_before': before,
                 'context_after': after,
-                'relevance_score': None,
             })
 
     total_results = len(results)
