@@ -168,7 +168,7 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
 
             max_limit = 500
             if limit > max_limit:
-                limit = max_limit
+                return json.dumps({"error": f"limit must be <= {max_limit}"})
             if not isinstance(limit, int) or limit < 0:
                 return json.dumps({"error": "limit must be a non-negative integer"})
             if not isinstance(offset, int) or offset < 0:
@@ -219,7 +219,7 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
             if not topic and not topics:
                 return json.dumps({"error": "topic or topics is required"})
             if limit > max_limit:
-                limit = max_limit
+                return json.dumps({"error": f"limit must be <= {max_limit}"})
             if not isinstance(limit, int) or limit < 0:
                 return json.dumps({"error": "limit must be a non-negative integer"})
             if not isinstance(offset, int) or offset < 0:
