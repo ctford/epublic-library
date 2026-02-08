@@ -28,9 +28,11 @@ TEXT_CACHE_MAX_BOOKS = 20
 async def load_books():
     """Load books on startup."""
     global books_cache
+    start = asyncio.get_event_loop().time()
     logger.info("Loading EPUB library...")
     books_cache = get_books()
-    logger.info(f"Loaded {len(books_cache)} books")
+    elapsed = asyncio.get_event_loop().time() - start
+    logger.info("Loaded %s books in %.2fs", len(books_cache), elapsed)
 
 
 def get_tools() -> list[Tool]:
