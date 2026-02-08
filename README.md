@@ -147,7 +147,8 @@ Each result includes:
 
 - Metadata is parsed and cached in memory on startup.
 - Full-text search uses a SQLite FTS index stored on disk.
-- Set `EPUBLIC_INDEX_PATH` to choose the index location (default `data/index.sqlite`).
+- By default the index lives in your OS cache directory (e.g. `~/Library/Caches/epublic-library/index.sqlite` on macOS).
+- Set `EPUBLIC_INDEX_PATH` to choose a different index location.
 - Set `EPUBLIC_REBUILD_INDEX=1` to force a rebuild.
 
 ## Troubleshooting

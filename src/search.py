@@ -5,6 +5,8 @@ import re
 import sqlite3
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable
+
+from platformdirs import user_cache_dir
 from dataclasses import asdict, dataclass
 from books import BookMetadata
 
@@ -191,7 +193,11 @@ def search_topic(
     if match_type not in {"exact", "fuzzy"}:
         raise ValueError("match_type must be 'exact' or 'fuzzy'")
 
-    index_path = index_path or os.getenv("EPUBLIC_INDEX_PATH", "data/index.sqlite")
+    if not index_path:
+        index_path = os.getenv("EPUBLIC_INDEX_PATH")
+    if not index_path:
+        cache_dir = user_cache_dir("epublic-library")
+        index_path = str(Path(cache_dir) / "index.sqlite")
     if index_path == ":memory:":
         conn = sqlite3.connect(":memory:")
         _ensure_index(books, text_loader, index_path, conn=conn)

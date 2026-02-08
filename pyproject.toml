@@ -7,6 +7,7 @@ authors = [{name = "Chris Ford"}]
 dependencies = [
     "mcp>=0.1",
     "ebooklib>=0.18",
+    "platformdirs>=4.0",
 ]
 
 [build-system]
