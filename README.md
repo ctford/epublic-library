@@ -67,6 +67,19 @@ See `TESTING.md` for the full testing guide.
 
 ## Tools
 
+### `list_books`
+List available books with optional pagination.
+
+**Example:**
+```
+list_books(limit=25, offset=0, include_fields=["author","published"])
+```
+
+Returns:
+- `total`: total books in library
+- `offset` and `limit`: echo of pagination
+- `books`: array of book entries (always `title`, optional `author`, `published`, `path`)
+
 ### `search_books`
 Search book metadata by title, author, or publication year.
 

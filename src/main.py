@@ -32,6 +32,28 @@ def get_tools() -> list[Tool]:
     """Define available MCP tools."""
     return [
         Tool(
+            name="list_books",
+            description="List available books with optional pagination",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of books to return (default 50)"
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Number of books to skip before returning results (default 0)"
+                    },
+                    "include_fields": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional fields to include: author, published, path"
+                    }
+                }
+            }
+        ),
+        Tool(
             name="search_books",
             description="Search book metadata by title, author, or publication year",
             inputSchema={
@@ -78,7 +100,42 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
         return json.dumps({"error": "Books not loaded yet"})
     
     try:
-        if name == "search_books":
+        if name == "list_books":
+            limit = arguments.get("limit", 50)
+            offset = arguments.get("offset", 0)
+            include_fields = set(arguments.get("include_fields") or [])
+
+            if not isinstance(limit, int) or limit < 0:
+                return json.dumps({"error": "limit must be a non-negative integer"})
+            if not isinstance(offset, int) or offset < 0:
+                return json.dumps({"error": "offset must be a non-negative integer"})
+
+            books_list = list(books_cache.values())
+            books_list.sort(key=lambda book: book.title.lower())
+
+            sliced = books_list[offset:offset + limit if limit else None]
+            results = []
+            for book in sliced:
+                entry = {"title": book.title}
+                if "author" in include_fields:
+                    entry["author"] = book.author or "Unknown"
+                if "published" in include_fields:
+                    entry["published"] = book.published or "Unknown"
+                if "path" in include_fields:
+                    entry["path"] = book.path
+                results.append(entry)
+
+            return json.dumps(
+                {
+                    "total": len(books_list),
+                    "offset": offset,
+                    "limit": limit,
+                    "books": results,
+                },
+                indent=2,
+            )
+
+        elif name == "search_books":
             query = arguments.get("query", "")
             results = search_metadata(query, books_cache)
             return json.dumps(results, indent=2)
