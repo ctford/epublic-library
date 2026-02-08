@@ -85,10 +85,8 @@ def search_topic(
     """Search for topic in book content."""
     results = []
     if query is not None:
-        query_lower = query.lower()
         topic_list = [query]
     else:
-        query_lower = ""
         topic_list = []
 
     if topics:
