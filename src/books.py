@@ -1,14 +1,15 @@
 """Book parsing and metadata extraction."""
 
-import os
-import re
 import json
 import logging
+import os
+import re
 import time
-from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional, List, Dict, Any
 from html.parser import HTMLParser
+from pathlib import Path
+from typing import Optional, List, Dict, Any
+
 import ebooklib
 from ebooklib import epub
 from platformdirs import user_cache_dir
@@ -31,6 +32,7 @@ class BookMetadata:
             self.toc = []
 
 
+# Parsing helpers
 class HTMLToText(HTMLParser):
     """Convert HTML to plain text."""
     
@@ -156,6 +158,7 @@ def parse_epub(path: str) -> BookMetadata | None:
     return metadata
 
 
+# Library discovery helpers
 def _search_paths() -> list[Path]:
     kindle_path = Path.home() / "Library" / "Application Support" / "Amazon" / "Kindle"
     search_paths = [kindle_path]
@@ -216,6 +219,7 @@ def _save_metadata_cache(cache_path: Path, payload: dict) -> None:
     cache_path.write_text(json.dumps(payload, separators=(",", ":")))
 
 
+# Public API
 def scan_kindle_library() -> Dict[str, BookMetadata]:
     """Scan the library and parse all book metadata."""
     books = {}

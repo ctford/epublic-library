@@ -2,23 +2,22 @@
 
 import asyncio
 import json
+import logging
+from collections import OrderedDict
 from typing import Any
+
 from mcp.server import Server
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
 from mcp.types import ServerCapabilities, Tool, TextContent, ToolsCapability
-import logging
-
-from collections import OrderedDict
 
 from books import get_books, parse_epub_text, refresh_books_cache
 from search import search_metadata, search_topic, prebuild_index
 
-# Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Global book cache
+# Global caches
 books_cache = None
 # Simple LRU cache for parsed book text
 text_cache = OrderedDict()
