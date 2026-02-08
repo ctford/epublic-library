@@ -166,6 +166,9 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
             offset = arguments.get("offset", 0)
             include_fields = set(arguments.get("include_fields") or [])
 
+            max_limit = 500
+            if limit > max_limit:
+                limit = max_limit
             if not isinstance(limit, int) or limit < 0:
                 return json.dumps({"error": "limit must be a non-negative integer"})
             if not isinstance(offset, int) or offset < 0:
@@ -209,8 +212,11 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
             offset = arguments.get("offset", 0)
             match_type = arguments.get("match_type", "fuzzy")
             topics = arguments.get("topics")
+            max_limit = 500
             if not topic and not topics:
                 return json.dumps({"error": "topic or topics is required"})
+            if limit > max_limit:
+                limit = max_limit
             if not isinstance(limit, int) or limit < 0:
                 return json.dumps({"error": "limit must be a non-negative integer"})
             if not isinstance(offset, int) or offset < 0:
