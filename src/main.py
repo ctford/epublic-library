@@ -69,7 +69,7 @@ def get_tools() -> list[Tool]:
         ),
         Tool(
             name="find_topic",
-            description="Find advice or content on a specific topic with full attribution",
+            description="Find advice or content on a specific topic with full attribution (filters can be combined)",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -80,6 +80,10 @@ def get_tools() -> list[Tool]:
                     "book_filter": {
                         "type": "string",
                         "description": "Optional: filter to specific book title"
+                    },
+                    "author_filter": {
+                        "type": "string",
+                        "description": "Optional: filter to specific author"
                     },
                     "limit": {
                         "type": "integer",
@@ -143,8 +147,15 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
         elif name == "find_topic":
             topic = arguments.get("topic", "")
             book_filter = arguments.get("book_filter")
+            author_filter = arguments.get("author_filter")
             limit = arguments.get("limit", 10)
-            results = search_topic(topic, books_cache, limit, book_filter=book_filter)
+            results = search_topic(
+                topic,
+                books_cache,
+                limit,
+                book_filter=book_filter,
+                author_filter=author_filter,
+            )
             return json.dumps(results, indent=2)
         
         else:

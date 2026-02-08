@@ -103,7 +103,7 @@ Find advice or content on a specific topic with attribution.
 
 **Example:**
 ```
-find_topic(topic="effective teams")
+find_topic(topic="effective teams", author_filter="Marty Cagan")
 ```
 
 Returns passages with full attribution:

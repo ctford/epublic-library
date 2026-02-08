@@ -177,6 +177,17 @@ class TestSearchTopic:
         results = search_topic("deployment", mock_books, book_filter="Test Book")
         assert len(results) == 0
 
+    def test_search_topic_author_filter(self, mock_books):
+        """Test filtering results to a specific author."""
+        results = search_topic("testing", mock_books, author_filter="Test Author")
+        assert len(results) > 0
+        assert all(result['author'] == "Test Author" for result in results)
+
+    def test_search_topic_author_filter_excludes(self, mock_books):
+        """Test that author_filter excludes non-matching authors."""
+        results = search_topic("deployment", mock_books, author_filter="Test Author")
+        assert len(results) == 0
+
 
 class TestSearchIntegration:
     """Integration tests combining metadata and topic search."""

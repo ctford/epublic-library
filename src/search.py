@@ -77,6 +77,7 @@ def search_topic(
     books: Dict[str, BookMetadata],
     limit: int = 10,
     book_filter: Optional[str] = None,
+    author_filter: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Search for topic in book content."""
     results = []
@@ -85,6 +86,9 @@ def search_topic(
     for title, book in books.items():
         if book_filter and not _fuzzy_match(book_filter, book.title):
             continue
+        if author_filter:
+            if not book.author or not _fuzzy_match(author_filter, book.author):
+                continue
 
         if not book.text:
             continue
