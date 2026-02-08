@@ -268,7 +268,7 @@ def search_topic(
             if score is None:
                 relevance_score = 0.0
             else:
-                relevance_score = 1.0 / (1.0 + score)
+                relevance_score = 1.0 / (1.0 + abs(score))
                 if relevance_score < 0.0:
                     relevance_score = 0.0
                 if relevance_score > 1.0:
