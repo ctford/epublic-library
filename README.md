@@ -106,6 +106,11 @@ Find advice or content on a specific topic with attribution.
 find_topic(topic="effective teams", author_filter="Marty Cagan", limit=5, offset=0)
 ```
 
+**Combined filters:**
+```
+find_topic(topic="AI consciousness", author_filter="Martha Wells", book_filter="All Systems Red")
+```
+
 Returns:
 - `total_results` with pagination metadata
 - `results` array of passages with full attribution
