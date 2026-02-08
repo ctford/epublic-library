@@ -39,7 +39,6 @@ async def load_books():
 async def refresh_metadata_cache_async():
     """Refresh metadata cache in the background."""
     global books_cache
-    local_books = books_cache
     start = asyncio.get_event_loop().time()
     try:
         updated = await asyncio.to_thread(refresh_books_cache)
@@ -143,6 +142,7 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
     if not books_cache:
         return json.dumps({"error": "Books not loaded yet"})
 
+    local_books = books_cache
     start = asyncio.get_event_loop().time()
 
     def load_book_text(book):
