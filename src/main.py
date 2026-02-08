@@ -92,7 +92,7 @@ def get_tools() -> list[Tool]:
         ),
         Tool(
             name="find_topic",
-            description="Find advice or content on a specific topic with full attribution (filters can be combined)",
+            description="Find advice or content on a specific topic with full attribution (filters can be combined; use topics for synonyms/OR search)",
             inputSchema={
                 "type": "object",
                 "properties": {
