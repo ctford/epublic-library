@@ -139,7 +139,7 @@ Each result includes:
 
 - Books are parsed from the directory specified in Claude Desktop config
 - Currently supports EPUB format
-- Full text is stored in memory for fast searching
+- Full text search is backed by a SQLite FTS index on disk
 - Search is case-insensitive
 - Results include surrounding context for better understanding
 
