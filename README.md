@@ -140,6 +140,11 @@ Each result includes:
 - Search is case-insensitive
 - Results include surrounding context for better understanding
 
+## Performance Notes
+
+- All books are parsed and cached in memory on startup.
+- Searches are linear scans over cached text; large libraries may increase startup time and search latency.
+
 ## Troubleshooting
 
 - Tools not appearing: verify the `command` path in the config and restart Claude Desktop.
