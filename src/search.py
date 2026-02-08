@@ -178,10 +178,10 @@ def search_topic(
             })
 
     total_results = len(results)
-    if limit and limit > 0:
-        paged_results = results[offset:offset + limit]
-    else:
+    if limit <= 0:
         paged_results = results[offset:]
+    else:
+        paged_results = results[offset:offset + limit]
 
     return {
         "total_results": total_results,
