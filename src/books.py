@@ -241,7 +241,7 @@ def _books_from_cache_payload(payload: dict) -> Dict[str, BookMetadata]:
     return books
 
 
-def load_cached_books() -> Dict[str, BookMetadata]:
+def load_cached_books() -> tuple[Dict[str, BookMetadata], bool]:
     """Load cached books without scanning the filesystem."""
     cache_dir = Path(user_cache_dir("epublic-library"))
     cache_path = cache_dir / "metadata.json"
@@ -249,8 +249,8 @@ def load_cached_books() -> Dict[str, BookMetadata]:
     if cached:
         books = _books_from_cache_payload(cached)
         logger.info("Loaded metadata cache for %s books", len(books))
-        return books
-    return {}
+        return books, True
+    return {}, False
 
 
 def refresh_books_cache() -> Dict[str, BookMetadata]:
@@ -288,9 +288,9 @@ def refresh_books_cache() -> Dict[str, BookMetadata]:
     return books
 
 
-def get_books() -> Dict[str, BookMetadata]:
+def get_books() -> tuple[Dict[str, BookMetadata], bool]:
     """Get all books from Kindle library, using a metadata cache."""
-    books = load_cached_books()
+    books, from_cache = load_cached_books()
     if books:
-        return books
-    return refresh_books_cache()
+        return books, from_cache
+    return refresh_books_cache(), False

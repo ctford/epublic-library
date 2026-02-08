@@ -30,10 +30,11 @@ async def load_books():
     global books_cache
     start = asyncio.get_event_loop().time()
     logger.info("Loading EPUB library...")
-    books_cache = get_books()
+    books_cache, from_cache = get_books()
     elapsed = asyncio.get_event_loop().time() - start
     logger.info("Loaded %s books in %.2fs", len(books_cache), elapsed)
-    asyncio.create_task(refresh_books_cache_async())
+    if from_cache:
+        asyncio.create_task(refresh_books_cache_async())
 
 
 async def refresh_books_cache_async():
