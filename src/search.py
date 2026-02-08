@@ -205,6 +205,14 @@ def search_topic(
             })
 
     total_results = len(results)
+    results.sort(
+        key=lambda r: (
+            r.get("relevance_score", 0),
+            r.get("book_title", ""),
+            r.get("text", ""),
+        ),
+        reverse=True,
+    )
     if limit <= 0:
         paged_results = results[offset:]
     else:
