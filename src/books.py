@@ -97,7 +97,7 @@ def parse_epub_metadata(path: str) -> BookMetadata | None:
         for item in book.toc:
             if isinstance(item, tuple):
                 title_text, uid = item
-                toc.append((str(title_text), uid, 0))
+                toc.append((str(title_text), str(uid), 0))
             else:
                 toc.append((str(item.title) if hasattr(item, 'title') else str(item), "", 0))
 
