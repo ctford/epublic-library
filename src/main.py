@@ -257,7 +257,7 @@ async def main():
     """Start the MCP server."""
     # Load books on startup
     await load_books()
-    prebuild_index(books_cache, text_loader=parse_epub_text)
+    prebuild_index(books_cache, text_loader=lambda book: parse_epub_text(book.path))
     
     # Create MCP server
     server = Server("epublic-library")
