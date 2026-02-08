@@ -30,16 +30,17 @@ async def load_books():
     global books_cache
     start = asyncio.get_event_loop().time()
     logger.info("Loading EPUB library...")
-    books_cache, from_cache = get_books()
+    books_cache, loaded_from_cache = get_books()
     elapsed = asyncio.get_event_loop().time() - start
     logger.info("Loaded %s books in %.2fs", len(books_cache), elapsed)
-    if from_cache:
+    if loaded_from_cache:
         asyncio.create_task(refresh_books_cache_async())
 
 
 async def refresh_books_cache_async():
     """Refresh metadata cache in the background."""
     global books_cache
+    local_books = books_cache
     start = asyncio.get_event_loop().time()
     try:
         updated = await asyncio.to_thread(refresh_books_cache)
@@ -171,7 +172,7 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
             if not isinstance(offset, int) or offset < 0:
                 return json.dumps({"error": "offset must be a non-negative integer"})
 
-            books_list = list(books_cache.values())
+            books_list = list(local_books.values())
             books_list.sort(key=lambda book: book.title.lower())
 
             sliced = books_list[offset:offset + limit if limit else None]
@@ -198,7 +199,7 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
 
         elif name == "search_books":
             query = arguments.get("query", "")
-            results = search_metadata(query, books_cache)
+            results = search_metadata(query, local_books)
             return json.dumps(results, indent=2)
         
         elif name == "find_topic":
@@ -219,7 +220,7 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
                 return json.dumps({"error": "match_type must be 'exact' or 'fuzzy'"})
             results = search_topic(
                 topic if topic else None,
-                books_cache,
+                local_books,
                 limit,
                 offset,
                 book_filter=book_filter,
