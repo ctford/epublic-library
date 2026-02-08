@@ -100,9 +100,6 @@ def search_topic(
             "results": [],
         }
 
-    if match_type not in {"exact", "fuzzy"}:
-        raise ValueError("match_type must be 'exact' or 'fuzzy'")
-
     filter_matcher = _fuzzy_match if match_type == "fuzzy" else _exact_match
 
     def _normalize(text: str) -> str:
