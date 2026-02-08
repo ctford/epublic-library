@@ -5,6 +5,7 @@ import os
 import re
 import sqlite3
 import time
+import json
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable
 
@@ -90,6 +91,40 @@ def _split_paragraphs(text: str) -> list[str]:
     return [p for p in parts if p]
 
 
+def _books_signature(books: Dict[str, BookMetadata]) -> dict:
+    entries = []
+    for book in books.values():
+        if not book.path:
+            continue
+        try:
+            stat = Path(book.path).stat()
+        except OSError:
+            continue
+        entries.append(
+            {
+                "path": book.path,
+                "mtime": stat.st_mtime,
+                "size": stat.st_size,
+            }
+        )
+    entries.sort(key=lambda e: e["path"])
+    return {"count": len(entries), "entries": entries}
+
+
+def _load_signature(signature_path: Path) -> Optional[dict]:
+    if not signature_path.exists():
+        return None
+    try:
+        return json.loads(signature_path.read_text())
+    except Exception:
+        return None
+
+
+def _save_signature(signature_path: Path, signature: dict) -> None:
+    signature_path.parent.mkdir(parents=True, exist_ok=True)
+    signature_path.write_text(json.dumps(signature, separators=(",", ":")))
+
+
 def _ensure_index(
     books: Dict[str, BookMetadata],
     text_loader: Optional[Callable[[BookMetadata], str]],
@@ -100,7 +135,13 @@ def _ensure_index(
         Path(index_path).parent.mkdir(parents=True, exist_ok=True)
 
     rebuild = os.getenv("EPUBLIC_REBUILD_INDEX") == "1"
-    if not rebuild and index_path != ":memory:" and Path(index_path).exists():
+    index_file = Path(index_path)
+    signature_path = index_file.with_suffix(index_file.suffix + ".meta")
+    signature = _books_signature(books)
+    previous = _load_signature(signature_path) if index_path != ":memory:" else None
+    needs_rebuild = previous != signature
+
+    if not rebuild and not needs_rebuild and index_path != ":memory:" and index_file.exists():
         return
 
     owns_conn = conn is None
@@ -156,6 +197,8 @@ def _ensure_index(
         if start is not None:
             elapsed = time.perf_counter() - start
             logger.info("Built FTS index with %s paragraphs in %.2fs", paragraph_count, elapsed)
+        if index_path != ":memory:":
+            _save_signature(signature_path, signature)
     finally:
         if owns_conn:
             conn.close()
