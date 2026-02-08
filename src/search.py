@@ -8,12 +8,14 @@ import time
 import json
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable
+import threading
 
 from platformdirs import user_cache_dir
 
 logger = logging.getLogger(__name__)
 from dataclasses import asdict, dataclass
 from books import BookMetadata
+_index_build_lock = threading.Lock()
 
 # Try to import fuzzy matching, but make it optional
 try:
@@ -125,6 +127,17 @@ def _save_signature(signature_path: Path, signature: dict) -> None:
     signature_path.write_text(json.dumps(signature, separators=(",", ":")))
 
 
+def _open_connection(index_path: str) -> sqlite3.Connection:
+    conn = sqlite3.connect(index_path)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+        conn.execute("PRAGMA synchronous=NORMAL")
+    except sqlite3.Error:
+        pass
+    return conn
+
+
 def _ensure_index(
     books: Dict[str, BookMetadata],
     text_loader: Optional[Callable[[BookMetadata], str]],
@@ -145,9 +158,10 @@ def _ensure_index(
         return False
 
     owns_conn = conn is None
-    conn = conn or sqlite3.connect(index_path)
+    conn = conn or _open_connection(index_path)
     rebuilt = True
     try:
+        _index_build_lock.acquire()
         start = None
         paragraph_count = 0
         if rebuild or index_path == ":memory:" or (index_path != ":memory:" and not Path(index_path).exists()):
@@ -201,6 +215,8 @@ def _ensure_index(
         if index_path != ":memory:":
             _save_signature(signature_path, signature)
     finally:
+        if _index_build_lock.locked():
+            _index_build_lock.release()
         if owns_conn:
             conn.close()
     return rebuilt
@@ -257,6 +273,11 @@ def search_topic(
             "results": [],
         }
 
+    if _index_build_lock.locked():
+        return {
+            "error": "indexing in progress; try again shortly"
+        }
+
     if match_type not in {"exact", "fuzzy"}:
         raise ValueError("match_type must be 'exact' or 'fuzzy'")
 
@@ -266,11 +287,11 @@ def search_topic(
         cache_dir = user_cache_dir("epublic-library")
         index_path = str(Path(cache_dir) / "index.sqlite")
     if index_path == ":memory:":
-        conn = sqlite3.connect(":memory:")
+        conn = _open_connection(":memory:")
         rebuilt = _ensure_index(books, text_loader, index_path, conn=conn)
     else:
         rebuilt = _ensure_index(books, text_loader, index_path)
-        conn = sqlite3.connect(index_path)
+        conn = _open_connection(index_path)
 
     try:
         if rebuilt:
