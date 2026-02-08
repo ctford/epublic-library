@@ -41,11 +41,14 @@ async def refresh_books_cache_async():
     """Refresh metadata cache in the background."""
     global books_cache
     start = asyncio.get_event_loop().time()
-    updated = await asyncio.to_thread(refresh_books_cache)
-    if updated:
-        books_cache = updated
-    elapsed = asyncio.get_event_loop().time() - start
-    logger.info("Metadata refresh completed in %.2fs", elapsed)
+    try:
+        updated = await asyncio.to_thread(refresh_books_cache)
+        if updated:
+            books_cache = updated
+        elapsed = asyncio.get_event_loop().time() - start
+        logger.info("Metadata refresh completed in %.2fs", elapsed)
+    except Exception as exc:
+        logger.error("Metadata refresh failed: %s", exc)
 
 
 def get_tools() -> list[Tool]:

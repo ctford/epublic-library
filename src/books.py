@@ -241,10 +241,14 @@ def _books_from_cache_payload(payload: dict) -> Dict[str, BookMetadata]:
     return books
 
 
+def _metadata_cache_path() -> Path:
+    cache_dir = Path(user_cache_dir("epublic-library"))
+    return cache_dir / "metadata.json"
+
+
 def load_cached_books() -> tuple[Dict[str, BookMetadata], bool]:
     """Load cached books without scanning the filesystem."""
-    cache_dir = Path(user_cache_dir("epublic-library"))
-    cache_path = cache_dir / "metadata.json"
+    cache_path = _metadata_cache_path()
     cached = _load_metadata_cache(cache_path)
     if cached:
         books = _books_from_cache_payload(cached)
@@ -255,8 +259,7 @@ def load_cached_books() -> tuple[Dict[str, BookMetadata], bool]:
 
 def refresh_books_cache() -> Dict[str, BookMetadata]:
     """Rebuild metadata cache if the library has changed."""
-    cache_dir = Path(user_cache_dir("epublic-library"))
-    cache_path = cache_dir / "metadata.json"
+    cache_path = _metadata_cache_path()
 
     paths = _discover_book_paths()
     signature = _books_signature_from_paths(paths)
