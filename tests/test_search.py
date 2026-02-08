@@ -241,6 +241,23 @@ class TestSearchTopic:
         )
         assert len(results["results"]) > 0
 
+    def test_search_topic_missing_topics(self, mock_books):
+        """Missing topic/topics should return no results."""
+        results = search_topic(None, mock_books, topics=None)
+        assert results["total_results"] == 0
+        assert results["results"] == []
+
+    def test_search_topic_invalid_match_type(self, mock_books):
+        """Invalid match_type should raise an error."""
+        import pytest
+
+        with pytest.raises(ValueError):
+            search_topic(
+                "testing",
+                mock_books,
+                match_type="semantic",
+            )
+
 
 class TestSearchIntegration:
     """Integration tests combining metadata and topic search."""
