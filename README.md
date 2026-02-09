@@ -1,5 +1,7 @@
 # ePublic Library
 
+> This is a vibe-coded personal project; any usefulness to others is welcome but coincidental.
+
 [![tests](https://github.com/ctford/epublic-library/actions/workflows/tests.yml/badge.svg)](https://github.com/ctford/epublic-library/actions/workflows/tests.yml)
 
 An MCP server that makes your EPUB book library searchable from Claude Code and Claude Desktop.
