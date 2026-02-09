@@ -264,6 +264,7 @@ def load_cached_books(search_paths: list[str]) -> tuple[Dict[str, BookMetadata],
     if cached:
         cached_roots = cached.get("roots", [])
         if cached_roots != search_paths:
+            logger.info("Metadata cache roots changed; rebuilding")
             return {}, False
         books = _books_from_cache_payload(cached)
         logger.info("Loaded metadata cache for %s books", len(books))
