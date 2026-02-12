@@ -261,6 +261,17 @@ class TestSearchTopic:
         assert results["total_results"] == 0
         assert results["results"] == []
 
+    def test_search_topic_indexing_in_progress_returns_error(self, mock_books):
+        """Indexing in progress should return a friendly error."""
+        from search import _index_build_lock
+
+        _index_build_lock.acquire()
+        try:
+            results = search_topic("testing", mock_books)
+            assert results["error"] == "indexing in progress; try again shortly"
+        finally:
+            _index_build_lock.release()
+
     def test_search_topic_invalid_match_type(self, mock_books):
         """Invalid match_type should raise an error."""
         import pytest
