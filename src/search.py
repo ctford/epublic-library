@@ -148,67 +148,64 @@ def _ensure_index(
 
     owns_conn = conn is None
     conn = conn or _open_connection(index_path)
-    rebuilt = True
     try:
-        _index_build_lock.acquire()
-        start = None
-        paragraph_count = 0
-        if rebuild or index_path == ":memory:" or (index_path != ":memory:" and not Path(index_path).exists()):
-            start = time.perf_counter()
+        with _index_build_lock:
+            start = None
+            paragraph_count = 0
+            if rebuild or index_path == ":memory:" or (index_path != ":memory:" and not Path(index_path).exists()):
+                start = time.perf_counter()
 
-        cur = conn.cursor()
-        cur.execute("DROP TABLE IF EXISTS paragraphs_fts")
-        cur.execute(
-            "CREATE VIRTUAL TABLE paragraphs_fts USING fts5("
-            "text, book_title, author, location, context_before, context_after)"
-        )
+            cur = conn.cursor()
+            cur.execute("DROP TABLE IF EXISTS paragraphs_fts")
+            cur.execute(
+                "CREATE VIRTUAL TABLE paragraphs_fts USING fts5("
+                "text, book_title, author, location, context_before, context_after)"
+            )
 
-        insert_sql = (
-            "INSERT INTO paragraphs_fts "
-            "(text, book_title, author, location, context_before, context_after) "
-            "VALUES (?, ?, ?, ?, ?, ?)"
-        )
+            insert_sql = (
+                "INSERT INTO paragraphs_fts "
+                "(text, book_title, author, location, context_before, context_after) "
+                "VALUES (?, ?, ?, ?, ?, ?)"
+            )
 
-        for book in books.values():
-            text = book.text
-            if not text and text_loader:
-                text = text_loader(book)
-            if not text:
-                continue
+            for book in books.values():
+                text = book.text
+                if not text and text_loader:
+                    text = text_loader(book)
+                if not text:
+                    continue
 
-            paragraphs = _split_paragraphs(text)
-            if not paragraphs:
-                continue
+                paragraphs = _split_paragraphs(text)
+                if not paragraphs:
+                    continue
 
-            for i, paragraph in enumerate(paragraphs):
-                before = _normalize(paragraphs[i - 1]) if i > 0 else ""
-                after = _normalize(paragraphs[i + 1]) if i + 1 < len(paragraphs) else ""
-                location = book.toc[0][0] if book.toc else "Unknown section"
-                cur.execute(
-                    insert_sql,
-                    (
-                        _normalize(paragraph),
-                        book.title,
-                        book.author or "Unknown",
-                        location,
-                        before,
-                        after,
-                    ),
-                )
-                paragraph_count += 1
+                for i, paragraph in enumerate(paragraphs):
+                    before = _normalize(paragraphs[i - 1]) if i > 0 else ""
+                    after = _normalize(paragraphs[i + 1]) if i + 1 < len(paragraphs) else ""
+                    location = book.toc[0][0] if book.toc else "Unknown section"
+                    cur.execute(
+                        insert_sql,
+                        (
+                            _normalize(paragraph),
+                            book.title,
+                            book.author or "Unknown",
+                            location,
+                            before,
+                            after,
+                        ),
+                    )
+                    paragraph_count += 1
 
-        conn.commit()
-        if start is not None:
-            elapsed = time.perf_counter() - start
-            logger.info("Built FTS index with %s paragraphs in %.2fs", paragraph_count, elapsed)
-        if index_path != ":memory:":
-            _save_signature(signature_path, signature)
+            conn.commit()
+            if start is not None:
+                elapsed = time.perf_counter() - start
+                logger.info("Built FTS index with %s paragraphs in %.2fs", paragraph_count, elapsed)
+            if index_path != ":memory:":
+                _save_signature(signature_path, signature)
     finally:
-        if _index_build_lock.locked():
-            _index_build_lock.release()
         if owns_conn:
             conn.close()
-    return rebuilt
+    return True
 
 
 def _escape_fts_phrase(term: str) -> str:
