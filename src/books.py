@@ -170,7 +170,6 @@ def _normalize_search_paths(paths: Optional[list[str]]) -> list[Path]:
 
 
 def _discover_book_paths(search_paths: list[Path]) -> list[str]:
-    supported_formats = {".epub", ".mobi", ".azw3", ".azw"}
     paths: list[str] = []
 
     for base_path in search_paths:
@@ -178,8 +177,6 @@ def _discover_book_paths(search_paths: list[Path]) -> list[str]:
             continue
         for root, _, files in os.walk(base_path):
             for file in files:
-                if Path(file).suffix.lower() not in supported_formats:
-                    continue
                 if not file.lower().endswith(".epub"):
                     continue
                 paths.append(os.path.join(root, file))
