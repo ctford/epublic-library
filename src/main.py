@@ -158,7 +158,7 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
     """Handle tool calls."""
     global books_cache
     
-    if not books_cache:
+    if books_cache is None:
         return json.dumps({"error": "Books not loaded yet"})
 
     local_books = books_cache
