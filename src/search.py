@@ -337,12 +337,7 @@ def search_topic(
             if score is None:
                 relevance_score = 0.0
             else:
-                relevance_score = 1.0 / (1.0 + abs(score))
-                if relevance_score < 0.0:
-                    relevance_score = 0.0
-                if relevance_score > 1.0:
-                    relevance_score = 1.0
-                relevance_score = round(relevance_score, 3)
+                relevance_score = round(1.0 / (1.0 + abs(score)), 3)
             results.append(
                 {
                     "text": row["text"],
