@@ -185,12 +185,12 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
             offset = arguments.get("offset", 0)
             include_fields = set(arguments.get("include_fields") or [])
 
-            if limit > MAX_LIMIT:
-                return json.dumps({"error": f"limit must be <= {MAX_LIMIT}"})
             if not isinstance(limit, int) or limit < 0:
                 return json.dumps({"error": "limit must be a non-negative integer"})
             if not isinstance(offset, int) or offset < 0:
                 return json.dumps({"error": "offset must be a non-negative integer"})
+            if limit > MAX_LIMIT:
+                return json.dumps({"error": f"limit must be <= {MAX_LIMIT}"})
 
             books_list = list(local_books.values())
             books_list.sort(key=lambda book: book.title.lower())
@@ -233,12 +233,12 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
             topics = arguments.get("topics")
             if not topic and not topics:
                 return json.dumps({"error": "topic or topics is required"})
-            if limit > MAX_LIMIT:
-                return json.dumps({"error": f"limit must be <= {MAX_LIMIT}"})
             if not isinstance(limit, int) or limit < 0:
                 return json.dumps({"error": "limit must be a non-negative integer"})
             if not isinstance(offset, int) or offset < 0:
                 return json.dumps({"error": "offset must be a non-negative integer"})
+            if limit > MAX_LIMIT:
+                return json.dumps({"error": f"limit must be <= {MAX_LIMIT}"})
             if match_type not in {"exact", "fuzzy"}:
                 return json.dumps({"error": "match_type must be 'exact' or 'fuzzy'"})
             results = search_topic(
