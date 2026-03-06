@@ -284,7 +284,7 @@ async def main():
         return [TextContent(type="text", text=result)]
     
     # Run the server over stdio
-    logger.info("Kindle MCP server started")
+    logger.info("ePublic Library MCP server started")
     async with stdio_server() as (read_stream, write_stream):
         await server.run(
             read_stream,
