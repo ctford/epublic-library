@@ -151,14 +151,6 @@ def parse_epub_text(path: str) -> str:
     return '\n'.join(text_content)
 
 
-def parse_epub(path: str) -> BookMetadata | None:
-    """Parse EPUB file and extract metadata and content."""
-    metadata = parse_epub_metadata(path)
-    if not metadata:
-        return None
-    metadata.text = parse_epub_text(path)
-    return metadata
-
 
 def _normalize_search_paths(paths: Optional[list[str]]) -> list[Path]:
     if paths:
