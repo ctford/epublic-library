@@ -13,7 +13,6 @@ import threading
 from platformdirs import user_cache_dir
 
 logger = logging.getLogger(__name__)
-from dataclasses import asdict, dataclass
 from books import BookMetadata
 _index_build_lock = threading.Lock()
 
@@ -23,16 +22,6 @@ try:
     HAS_FUZZY = True
 except ImportError:
     HAS_FUZZY = False
-
-
-@dataclass
-class SearchResult:
-    """A single search result with attribution."""
-    book: str
-    author: str
-    chapter: str
-    quote: str
-    context: str  # surrounding text
 
 
 def _exact_match(query: str, target: str) -> bool:
