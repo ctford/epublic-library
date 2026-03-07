@@ -151,6 +151,66 @@ def parse_epub_text(path: str) -> str:
     return '\n'.join(text_content)
 
 
+def _toc_chapter_map(toc) -> dict:
+    """Build a href -> chapter_title mapping from EPUB TOC (strips URL fragments)."""
+    mapping = {}
+
+    def _walk(items):
+        for item in items:
+            if hasattr(item, 'href') and hasattr(item, 'title'):
+                href = item.href.split('#')[0] if item.href else ""
+                if href and item.title:
+                    mapping[href] = item.title
+            elif isinstance(item, tuple) and len(item) == 2:
+                section, children = item
+                if hasattr(section, 'href') and hasattr(section, 'title'):
+                    href = section.href.split('#')[0] if section.href else ""
+                    if href and section.title:
+                        mapping[href] = section.title
+                if children:
+                    _walk(children)
+
+    _walk(toc)
+    return mapping
+
+
+def parse_epub_chapters(path: str) -> list[tuple[str, str]]:
+    """Parse EPUB and return [(chapter_title, text)] for each spine item."""
+    book = _read_epub(path)
+    if not book:
+        return []
+
+    chapter_map = _toc_chapter_map(book.toc)
+    items_by_id = {item.get_id(): item for item in book.get_items()}
+
+    chapters = []
+    for spine_item in book.spine:
+        item_id = spine_item[0] if isinstance(spine_item, tuple) else spine_item
+        doc = items_by_id.get(item_id)
+        if not doc or not hasattr(doc, 'get_content'):
+            continue
+
+        file_name = doc.get_name()
+        chapter_title = chapter_map.get(file_name)
+        if chapter_title is None:
+            for href, title in chapter_map.items():
+                if file_name.endswith(href) or href.endswith(file_name):
+                    chapter_title = title
+                    break
+
+        try:
+            content = doc.get_content()
+            if isinstance(content, bytes):
+                content = content.decode('utf-8', errors='ignore')
+            parser = HTMLToText()
+            parser.feed(content)
+            text = parser.get_text()
+            chapters.append((chapter_title or "", text))
+        except Exception:
+            pass
+
+    return chapters
+
 
 def _normalize_search_paths(paths: Optional[list[str]]) -> list[Path]:
     if paths:

@@ -12,7 +12,7 @@ from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
 from mcp.types import ServerCapabilities, Tool, TextContent, ToolsCapability
 
-from books import get_books, parse_epub_text, refresh_books_cache
+from books import get_books, parse_epub_text, parse_epub_chapters, refresh_books_cache
 from search import search_metadata, search_topic, prebuild_index
 
 logging.basicConfig(level=logging.INFO)
@@ -61,7 +61,7 @@ async def prebuild_index_async():
         await asyncio.to_thread(
             prebuild_index,
             books_cache,
-            text_loader=lambda book: parse_epub_text(book.path),
+            chapter_loader=lambda book: parse_epub_chapters(book.path),
         )
         elapsed = asyncio.get_event_loop().time() - start
         logger.info("FTS index prebuild completed in %.2fs", elapsed)
@@ -250,7 +250,7 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
                 author_filter=author_filter,
                 match_type=match_type,
                 topics=topics,
-                text_loader=load_book_text,
+                chapter_loader=lambda book: parse_epub_chapters(book.path),
             )
             return json.dumps(results, indent=2)
         

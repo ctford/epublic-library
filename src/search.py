@@ -132,6 +132,7 @@ def _ensure_index(
     text_loader: Optional[Callable[[BookMetadata], str]],
     index_path: str,
     conn: Optional[sqlite3.Connection] = None,
+    chapter_loader: Optional[Callable[[BookMetadata], list]] = None,
 ) -> bool:
     if index_path != ":memory:":
         Path(index_path).parent.mkdir(parents=True, exist_ok=True)
@@ -169,32 +170,37 @@ def _ensure_index(
             )
 
             for book in books.values():
-                text = book.text
-                if not text and text_loader:
-                    text = text_loader(book)
-                if not text:
-                    continue
+                if chapter_loader:
+                    book_chapters = chapter_loader(book)
+                else:
+                    text = book.text
+                    if not text and text_loader:
+                        text = text_loader(book)
+                    book_chapters = [("", text)] if text else []
 
-                paragraphs = _split_paragraphs(text)
-                if not paragraphs:
-                    continue
+                for chapter_title, text in book_chapters:
+                    if not text:
+                        continue
+                    paragraphs = _split_paragraphs(text)
+                    if not paragraphs:
+                        continue
 
-                for i, paragraph in enumerate(paragraphs):
-                    before = _normalize(paragraphs[i - 1]) if i > 0 else ""
-                    after = _normalize(paragraphs[i + 1]) if i + 1 < len(paragraphs) else ""
-                    location = book.toc[0][0] if book.toc else "Unknown section"
-                    cur.execute(
-                        insert_sql,
-                        (
-                            _normalize(paragraph),
-                            book.title,
-                            book.author or "Unknown",
-                            location,
-                            before,
-                            after,
-                        ),
-                    )
-                    paragraph_count += 1
+                    location = chapter_title or (book.toc[0][0] if book.toc else "Unknown section")
+                    for i, paragraph in enumerate(paragraphs):
+                        before = _normalize(paragraphs[i - 1]) if i > 0 else ""
+                        after = _normalize(paragraphs[i + 1]) if i + 1 < len(paragraphs) else ""
+                        cur.execute(
+                            insert_sql,
+                            (
+                                _normalize(paragraph),
+                                book.title,
+                                book.author or "Unknown",
+                                location,
+                                before,
+                                after,
+                            ),
+                        )
+                        paragraph_count += 1
 
             conn.commit()
             if start is not None:
@@ -233,6 +239,7 @@ def search_topic(
     topics: Optional[list[str]] = None,
     text_loader: Optional[Callable[[BookMetadata], str]] = None,
     index_path: Optional[str] = None,
+    chapter_loader: Optional[Callable[[BookMetadata], list]] = None,
 ) -> Dict[str, Any]:
     """Search for topic in book content using SQLite FTS."""
     if query is not None:
@@ -274,9 +281,9 @@ def search_topic(
         index_path = str(Path(cache_dir) / "index.sqlite")
     if index_path == ":memory:":
         conn = _open_connection(":memory:")
-        rebuilt = _ensure_index(books, text_loader, index_path, conn=conn)
+        rebuilt = _ensure_index(books, text_loader, index_path, conn=conn, chapter_loader=chapter_loader)
     else:
-        rebuilt = _ensure_index(books, text_loader, index_path)
+        rebuilt = _ensure_index(books, text_loader, index_path, chapter_loader=chapter_loader)
         conn = _open_connection(index_path)
 
     try:
@@ -361,13 +368,14 @@ def prebuild_index(
     books: Dict[str, BookMetadata],
     text_loader: Optional[Callable[[BookMetadata], str]] = None,
     index_path: Optional[str] = None,
+    chapter_loader: Optional[Callable[[BookMetadata], list]] = None,
 ) -> bool:
     if not index_path:
         index_path = os.getenv("EPUBLIC_INDEX_PATH")
     if not index_path:
         cache_dir = user_cache_dir("epublic-library")
         index_path = str(Path(cache_dir) / "index.sqlite")
-    rebuilt = _ensure_index(books, text_loader, index_path)
+    rebuilt = _ensure_index(books, text_loader, index_path, chapter_loader=chapter_loader)
     if rebuilt:
         logger.info("FTS index rebuilt on startup")
     else:
