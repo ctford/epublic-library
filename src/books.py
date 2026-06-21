@@ -266,7 +266,7 @@ def _save_metadata_cache(cache_path: Path, payload: dict) -> None:
 
 
 # Public API
-def scan_kindle_library(search_paths: list[str]) -> Dict[str, BookMetadata]:
+def scan_library(search_paths: list[str]) -> Dict[str, BookMetadata]:
     """Scan the library and parse all book metadata."""
     books = {}
     normalized_paths = _normalize_search_paths(search_paths)
@@ -339,7 +339,7 @@ def refresh_books_cache(search_paths: list[str]) -> Dict[str, BookMetadata]:
         return books
 
     start = time.perf_counter()
-    books = scan_kindle_library(search_paths)
+    books = scan_library(search_paths)
     payload = {
         "roots": [str(p) for p in normalized_paths],
         "signature": signature,
@@ -361,7 +361,7 @@ def refresh_books_cache(search_paths: list[str]) -> Dict[str, BookMetadata]:
 
 
 def get_books(search_paths: Optional[list[str]] = None) -> tuple[Dict[str, BookMetadata], bool]:
-    """Get all books from Kindle library, using a metadata cache."""
+    """Get all books from the library, using a metadata cache."""
     paths = search_paths or []
     books, from_cache = load_cached_books(paths)
     if books:

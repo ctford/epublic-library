@@ -1,1 +1,1 @@
-"""Kindle MCP Server package."""
+"""ePublic Library MCP Server package."""

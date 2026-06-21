@@ -4,7 +4,7 @@
 
 ### No Personal Paths
 - **Never use absolute paths** that contain personal machine information (usernames, computer names, local directory structures)
-- **Bad**: `/Users/chrisford/Codigo/epublic-library`, `/Users/yourname/Documents/books`
+- **Bad**: `/Users/yourname/Codigo/epublic-library`, `/Users/yourname/Documents/books`
 - **Good**: `/path/to/epublic-library`, `~/Documents/books`
 - **Best**: Relative paths using `os.path.join(os.path.dirname(__file__), ...)`
 
@@ -28,7 +28,7 @@
 
 ### Bad
 ```python
-sys.path.insert(0, '/Users/chris/kindle-mcp/src')
+sys.path.insert(0, '/Users/yourname/some-project/src')
 ```
 
 ### Good

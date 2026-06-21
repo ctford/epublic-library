@@ -7,7 +7,7 @@ A Python-based MCP server that makes your EPUB book library searchable from Clau
 ## Key Features Implemented
 
 ### 1. Book Parsing (`src/books.py`)
-- **EPUB Support**: Parses EPUB files from your Kindle library
+- **EPUB Support**: Parses EPUB files from your book library
 - **Metadata Extraction**: Automatically extracts:
   - Book title
   - Author name
@@ -104,7 +104,7 @@ epublic-library/
 2. **Implement Caching**: Save parsed book data to disk to speed up startup
 3. **Better Attribution**: Extract chapter numbers/page numbers where available
 4. **Search Refinement**: Add fuzzy matching, phrase search, filter by section
-5. **Highlights Integration**: Parse Kindle's highlight database (SQLite-based) if available
+5. **Highlights Integration**: Parse an e-reader highlight database (SQLite-based) if available
 
 ## Testing
 
