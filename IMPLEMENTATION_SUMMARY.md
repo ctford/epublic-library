@@ -35,9 +35,15 @@ Finds passages/advice related to a topic:
 
 ### 3. MCP Server Integration (`src/main.py`)
 - Implements standard MCP protocol
-- Exposes tools: `search_books` and `find_topic`
+- Exposes tools: `list_books`, `search_books` and `find_topic`
 - Boots books on startup (cached in memory)
 - Error handling and logging
+
+### 4. Command-Line Interface (`src/cli.py`)
+- Installs as the `epublic` command via `[project.scripts]`
+- Subcommands `list`, `search`, `topic` mirror the MCP tools
+- Reuses the same `books`/`search` functions, so there is no logic duplication
+- Reads the library from `EPUBLIC_LIBRARY_PATHS` or `--paths`; `--json` for raw output
 
 ## Tool Signatures
 

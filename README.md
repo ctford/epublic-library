@@ -4,12 +4,13 @@
 
 [![tests](https://github.com/ctford/epublic-library/actions/workflows/tests.yml/badge.svg)](https://github.com/ctford/epublic-library/actions/workflows/tests.yml)
 
-An MCP server that makes your EPUB book library searchable from Claude Code and Claude Desktop.
+Makes your EPUB book library searchable from Claude Code and Claude Desktop (via MCP) and from the shell (via the `epublic` command).
 
 ## Features
 
 - **Metadata Search**: Find books by title, author, or publication year
 - **Topic Search**: Find advice and content on specific topics with full attribution (book, author, chapter)
+- **Two interfaces**: an MCP server for Claude, and an `epublic` command-line tool that exposes the same searches in a terminal
 
 ## Quick Start
 
@@ -60,6 +61,36 @@ On startup, the server scans the library paths passed in the Claude Desktop conf
 You can pass multiple paths by adding more items to the `args` array.
 Alternatively, set `EPUBLIC_LIBRARY_PATHS` (a path list separated by your OS path separator).
 
+## Command Line (`epublic`)
+
+Installing the package also installs the `epublic` command, which exposes the
+same searches from a terminal. It reads the library location from
+`EPUBLIC_LIBRARY_PATHS` (or a `--paths` option) and shares the same on-disk
+metadata cache and FTS index as the MCP server.
+
+```bash
+export EPUBLIC_LIBRARY_PATHS="/path/to/epub-library"
+
+# List books (optionally with author/year)
+epublic list --limit 25 --author --published
+
+# Search metadata by title, author, or year
+epublic search "Kief Morris"
+
+# Find passages on a topic, with attribution
+epublic topic "effective teams" --author "Marty Cagan" --limit 5
+
+# OR across several topics
+epublic topic testing "quality assurance" TDD --limit 15
+
+# Raw JSON for scripting
+epublic --json search "Infrastructure as Code"
+```
+
+Run `epublic --help` (or `epublic <command> --help`) for the full option list.
+If the package's `venv` is not on your `PATH`, call it by full path, e.g.
+`/path/to/epublic-library/venv/bin/epublic`.
+
 ## Testing
 
 ```bash
@@ -69,7 +100,7 @@ pytest tests/ -v
 
 See `TESTING.md` for the full testing guide.
 
-## Tools
+## Tools (MCP)
 
 ### `list_books`
 List available books with optional pagination.

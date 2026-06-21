@@ -10,6 +10,9 @@ dependencies = [
     "platformdirs>=4.0",
 ]
 
+[project.scripts]
+epublic = "cli:main"
+
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
