@@ -1,6 +1,7 @@
 """Tests for the command-line interface."""
 
 import json
+import os
 
 import pytest
 
@@ -79,6 +80,36 @@ def test_doctor_reports_no_text_layer(patched_library, monkeypatch, capsys):
     assert "Test Book" in flagged
     assert "no text layer" in flagged["Test Book"]
     assert "Another Book" not in flagged
+
+
+def test_paths_before_subcommand_not_swallowed():
+    parser = cli.build_parser()
+    args = parser.parse_args(["--paths", "/lib", "search", "foo"])
+    assert args.command == "search"
+    assert args.query == "foo"
+    assert cli._resolve_paths(args.paths) == ["/lib"]
+
+
+def test_paths_repeatable_and_pathsep_split():
+    parser = cli.build_parser()
+    args = parser.parse_args(
+        ["--paths", "/a", "--paths", f"/b{os.pathsep}/c", "list"]
+    )
+    assert cli._resolve_paths(args.paths) == ["/a", "/b", "/c"]
+
+
+def test_paths_flag_end_to_end(monkeypatch, mock_books, capsys):
+    seen = {}
+
+    def fake_get_books(paths):
+        seen["paths"] = paths
+        return mock_books, False
+
+    monkeypatch.setattr(cli, "get_books", fake_get_books)
+    monkeypatch.delenv("EPUBLIC_LIBRARY_PATHS", raising=False)
+    rc = cli.main(["--paths", "/my/lib", "search", "Test"])
+    assert rc == 0
+    assert seen["paths"] == ["/my/lib"]
 
 
 def test_missing_paths_errors(monkeypatch):

@@ -18,9 +18,12 @@ MAX_LIMIT = 500
 
 
 def _resolve_paths(cli_paths):
-    """Return library paths from --paths, falling back to the env var."""
+    """Return library paths from --paths, falling back to the env var.
+
+    Each --paths value may itself be an os.pathsep-separated list.
+    """
     if cli_paths:
-        return cli_paths
+        return [p for entry in cli_paths for p in entry.split(os.pathsep) if p]
     env_paths = os.getenv("EPUBLIC_LIBRARY_PATHS")
     if env_paths:
         return [p for p in env_paths.split(os.pathsep) if p]
@@ -174,8 +177,9 @@ def build_parser():
         description="Search your EPUB library by metadata or topic.",
     )
     parser.add_argument(
-        "--paths", nargs="+", metavar="DIR",
-        help="Library directories to scan (overrides EPUBLIC_LIBRARY_PATHS).",
+        "--paths", action="append", metavar="DIR",
+        help="Library directory to scan; repeat for multiple, or separate with "
+             f"'{os.pathsep}' (overrides EPUBLIC_LIBRARY_PATHS).",
     )
     parser.add_argument("--json", action="store_true", help="Output raw JSON.")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show progress logging.")
