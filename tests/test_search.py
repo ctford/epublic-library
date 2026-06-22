@@ -19,6 +19,19 @@ class TestSearchMetadata:
         assert len(results) == 1
         assert results[0]['title'] == "Test Book"
     
+    def test_search_returns_same_titled_books(self):
+        """Books sharing a title (keyed by path) are both returned."""
+        from books import BookMetadata
+        books = {
+            "/lib/a.epub": BookMetadata(title="Refactoring", author="Fowler",
+                                        published="1999", path="/lib/a.epub"),
+            "/lib/b.epub": BookMetadata(title="Refactoring", author="Fowler",
+                                        published="2018", path="/lib/b.epub"),
+        }
+        results = search_metadata("Refactoring", books)
+        assert len(results) == 2
+        assert {r["published"] for r in results} == {"1999", "2018"}
+
     def test_search_by_partial_title(self, mock_books):
         """Test searching for book by partial title match."""
         results = search_metadata("Test", mock_books)

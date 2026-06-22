@@ -56,9 +56,9 @@ def search_metadata(query: str, books: Dict[str, BookMetadata],
     results = []
     matcher = _fuzzy_match if fuzzy else _exact_match
     
-    for title, book in books.items():
+    for book in books.values():
         # Check if query matches title, author, or year
-        title_match = matcher(query, title)
+        title_match = matcher(query, book.title)
         author_match = book.author and matcher(query, book.author)
         year_match = book.published and _exact_match(query, book.published)  # Year always exact
         

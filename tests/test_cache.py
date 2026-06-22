@@ -41,7 +41,7 @@ def test_cache_used_when_unchanged(library):
 
     loaded, from_cache = books.load_cached_books([str(lib)])
     assert from_cache is True
-    assert set(loaded) == {"A"}
+    assert {b.title for b in loaded.values()} == {"A"}
 
 
 def test_cache_stale_when_file_added(library):

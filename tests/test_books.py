@@ -7,7 +7,7 @@ import sys
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
-from books import BookMetadata, HTMLToText
+from books import BookMetadata, HTMLToText, _books_from_cache_payload
 
 
 class TestBookMetadata:
@@ -123,6 +123,28 @@ class TestHTMLToText:
         assert "Nested" in text
         assert "bold" in text
         assert "text" in text
+
+
+class TestCachePayloadKeying:
+    """Same-titled books must not collide when loaded from the cache."""
+
+    def test_same_title_different_path_both_kept(self):
+        payload = {
+            "books": [
+                {"title": "Refactoring", "author": "Fowler",
+                 "path": "/lib/refactoring-1ed.epub", "toc": []},
+                {"title": "Refactoring", "author": "Fowler",
+                 "path": "/lib/refactoring-2ed.epub", "toc": []},
+            ]
+        }
+        books = _books_from_cache_payload(payload)
+        assert len(books) == 2
+        assert set(books) == {"/lib/refactoring-1ed.epub", "/lib/refactoring-2ed.epub"}
+
+    def test_legacy_entry_without_path_falls_back_to_title(self):
+        payload = {"books": [{"title": "Old Book", "toc": []}]}
+        books = _books_from_cache_payload(payload)
+        assert "Old Book" in books
 
 
 class TestBookMetadataWithMock:

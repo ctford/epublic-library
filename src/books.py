@@ -267,14 +267,18 @@ def _save_metadata_cache(cache_path: Path, payload: dict) -> None:
 
 # Public API
 def scan_library(search_paths: list[str]) -> Dict[str, BookMetadata]:
-    """Scan the library and parse all book metadata."""
+    """Scan the library and parse all book metadata, keyed by file path.
+
+    Keying by path (rather than title) avoids silently dropping books that
+    share a dc:title (e.g. two editions, or papers with identical titles).
+    """
     books = {}
     normalized_paths = _normalize_search_paths(search_paths)
     for file_path in _discover_book_paths(normalized_paths):
         logger.info("Parsing metadata: %s", Path(file_path).name)
         book = parse_epub_metadata(file_path)
         if book:
-            books[book.title] = book
+            books[book.path] = book
     return books
 
 
@@ -290,11 +294,15 @@ def _books_from_cache_payload(payload: dict) -> Dict[str, BookMetadata]:
             uid = str(entry[1]) if len(entry) > 1 else ""
             depth = entry[2] if len(entry) > 2 else 0
             normalized_toc.append((title, uid, depth))
-        books[item["title"]] = BookMetadata(
+        path = item.get("path", "")
+        # Key by path so same-titled books don't collide; fall back to title
+        # for legacy cache entries that lack a path.
+        key = path or item["title"]
+        books[key] = BookMetadata(
             title=item["title"],
             author=item.get("author"),
             published=item.get("published"),
-            path=item.get("path", ""),
+            path=path,
             toc=normalized_toc,
             text="",
         )
