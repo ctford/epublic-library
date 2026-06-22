@@ -307,18 +307,31 @@ def _metadata_cache_path() -> Path:
 
 
 def load_cached_books(search_paths: list[str]) -> tuple[Dict[str, BookMetadata], bool]:
-    """Load cached books without scanning the filesystem; may return empty."""
+    """Load cached books only if the cache matches the current library.
+
+    The filesystem signature (paths + mtime + size + count, plus roots) is
+    authoritative: a lightweight directory walk and stat is enough to detect
+    added, removed, or modified EPUBs without re-parsing every book. A stale or
+    missing signature returns ``({}, False)`` so the caller rebuilds the cache.
+    """
     cache_path = _metadata_cache_path()
     cached = _load_metadata_cache(cache_path)
-    if cached:
-        cached_roots = cached.get("roots", [])
-        if cached_roots != search_paths:
-            logger.info("Metadata cache roots changed; rebuilding")
-            return {}, False
-        books = _books_from_cache_payload(cached)
-        logger.info("Loaded metadata cache for %s books", len(books))
-        return books, True
-    return {}, False
+    if not cached:
+        return {}, False
+
+    normalized_paths = _normalize_search_paths(search_paths)
+    if not normalized_paths:
+        return {}, False
+
+    paths = _discover_book_paths(normalized_paths)
+    signature = _library_signature_from_paths(paths, [str(p) for p in normalized_paths])
+    if cached.get("signature") != signature:
+        logger.info("Metadata cache is stale; rebuilding")
+        return {}, False
+
+    books = _books_from_cache_payload(cached)
+    logger.info("Loaded metadata cache for %s books", len(books))
+    return books, True
 
 
 def refresh_books_cache(search_paths: list[str]) -> Dict[str, BookMetadata]:
