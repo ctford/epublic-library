@@ -11,7 +11,7 @@ import logging
 import os
 import sys
 
-from books import get_books, parse_epub_chapters
+from books import diagnose_book, get_books, parse_epub_chapters, parse_epub_text
 from search import search_metadata, search_topic
 
 MAX_LIMIT = 500
@@ -132,6 +132,35 @@ def cmd_topic(args, books):
         print(f"  {m.get('text', '').strip()}\n")
 
 
+def cmd_doctor(args, books):
+    problems = []
+    for book in sorted(books.values(), key=lambda b: (b.title or "").lower()):
+        text = parse_epub_text(book.path) if book.path else ""
+        issues = diagnose_book(book, text)
+        if issues:
+            problems.append((book, issues))
+
+    if args.json:
+        print(json.dumps({
+            "total": len(books),
+            "with_issues": len(problems),
+            "books": [
+                {"title": b.title, "path": b.path, "issues": issues}
+                for b, issues in problems
+            ],
+        }, indent=2))
+        return
+
+    if not problems:
+        print(f"No issues found across {len(books)} book(s).")
+        return
+    print(f"{len(problems)} of {len(books)} book(s) have issues:\n")
+    for book, issues in problems:
+        print(f"{book.title or '(untitled)'}")
+        print(f"  issues: {', '.join(issues)}")
+        print(f"  path:   {book.path}\n")
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="epublic",
@@ -168,6 +197,12 @@ def build_parser():
         help="Match strategy for book/author filters (default fuzzy).",
     )
     p_topic.set_defaults(func=cmd_topic)
+
+    p_doctor = sub.add_parser(
+        "doctor",
+        help="Report books with missing metadata or no text layer.",
+    )
+    p_doctor.set_defaults(func=cmd_doctor)
 
     return parser
 

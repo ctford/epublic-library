@@ -57,6 +57,21 @@ def test_topic_multiple_is_or(patched_library, capsys):
     assert data["total_results"] >= 1
 
 
+def test_doctor_reports_no_text_layer(patched_library, monkeypatch, capsys):
+    # "Another Book" gets plenty of text; "Test Book" gets almost none.
+    def fake_text(path):
+        return "x" * 1000 if path.endswith("another.epub") else "tiny"
+
+    monkeypatch.setattr(cli, "parse_epub_text", fake_text)
+    rc = cli.main(["--json", "doctor"])
+    data = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    flagged = {b["title"]: b["issues"] for b in data["books"]}
+    assert "Test Book" in flagged
+    assert "no text layer" in flagged["Test Book"]
+    assert "Another Book" not in flagged
+
+
 def test_missing_paths_errors(monkeypatch):
     monkeypatch.delenv("EPUBLIC_LIBRARY_PATHS", raising=False)
     with pytest.raises(SystemExit):

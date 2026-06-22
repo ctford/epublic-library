@@ -13,7 +13,7 @@ import threading
 from platformdirs import user_cache_dir
 
 logger = logging.getLogger(__name__)
-from books import BookMetadata
+from books import BookMetadata, NO_TEXT_THRESHOLD
 _index_build_lock = threading.Lock()
 
 # Try to import fuzzy matching, but make it optional
@@ -177,6 +177,15 @@ def _ensure_index(
                     if not text and text_loader:
                         text = text_loader(book)
                     book_chapters = [("", text)] if text else []
+
+                book_text_len = sum(len(t) for _, t in book_chapters if t)
+                if book_text_len < NO_TEXT_THRESHOLD:
+                    logger.warning(
+                        "Book has no usable text layer (%d chars); it cannot be "
+                        "found by topic search: %s",
+                        book_text_len,
+                        book.title,
+                    )
 
                 for chapter_title, text in book_chapters:
                     if not text:

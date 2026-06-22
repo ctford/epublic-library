@@ -16,6 +16,11 @@ from platformdirs import user_cache_dir
 
 logger = logging.getLogger(__name__)
 
+# Books whose extracted text is shorter than this are treated as having no
+# usable text layer (e.g. image-only scanned facsimiles) — they can never be
+# found by topic search.
+NO_TEXT_THRESHOLD = 500
+
 
 @dataclass
 class BookMetadata:
@@ -263,6 +268,24 @@ def _load_metadata_cache(cache_path: Path) -> Optional[dict]:
 def _save_metadata_cache(cache_path: Path, payload: dict) -> None:
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     cache_path.write_text(json.dumps(payload, separators=(",", ":")))
+
+
+def diagnose_book(book: BookMetadata, text: str) -> list[str]:
+    """Return a list of human-readable issues for a book given its text.
+
+    Flags missing dc:title / creator / date and an absent text layer (which
+    makes the book invisible to topic search).
+    """
+    issues = []
+    if not (book.title or "").strip():
+        issues.append("missing title")
+    if not (book.author or "").strip():
+        issues.append("missing author")
+    if not (book.published or "").strip():
+        issues.append("missing date")
+    if len((text or "").strip()) < NO_TEXT_THRESHOLD:
+        issues.append("no text layer")
+    return issues
 
 
 # Public API

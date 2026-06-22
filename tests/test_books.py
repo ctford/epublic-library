@@ -7,7 +7,13 @@ import sys
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
-from books import BookMetadata, HTMLToText, _books_from_cache_payload
+from books import (
+    BookMetadata,
+    HTMLToText,
+    NO_TEXT_THRESHOLD,
+    _books_from_cache_payload,
+    diagnose_book,
+)
 
 
 class TestBookMetadata:
@@ -145,6 +151,25 @@ class TestCachePayloadKeying:
         payload = {"books": [{"title": "Old Book", "toc": []}]}
         books = _books_from_cache_payload(payload)
         assert "Old Book" in books
+
+
+class TestDiagnoseBook:
+    """Tests for library health diagnostics."""
+
+    def test_healthy_book_has_no_issues(self):
+        book = BookMetadata(title="T", author="A", published="2020", path="/x.epub")
+        assert diagnose_book(book, "x" * NO_TEXT_THRESHOLD) == []
+
+    def test_no_text_layer_flagged(self):
+        book = BookMetadata(title="T", author="A", published="2020", path="/x.epub")
+        assert "no text layer" in diagnose_book(book, "tiny")
+
+    def test_missing_metadata_flagged(self):
+        book = BookMetadata(title="", author=None, published=None, path="/x.epub")
+        issues = diagnose_book(book, "y" * NO_TEXT_THRESHOLD)
+        assert "missing title" in issues
+        assert "missing author" in issues
+        assert "missing date" in issues
 
 
 class TestBookMetadataWithMock:
