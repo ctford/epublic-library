@@ -82,6 +82,10 @@ def _split_paragraphs(text: str) -> list[str]:
     return [p for p in parts if p]
 
 
+# Bump when the FTS schema changes so existing on-disk indexes are rebuilt.
+INDEX_SCHEMA_VERSION = 2
+
+
 def _books_signature(books: Dict[str, BookMetadata]) -> dict:
     entries = []
     for book in books.values():
@@ -99,7 +103,7 @@ def _books_signature(books: Dict[str, BookMetadata]) -> dict:
             }
         )
     entries.sort(key=lambda e: e["path"])
-    return {"count": len(entries), "entries": entries}
+    return {"schema": INDEX_SCHEMA_VERSION, "count": len(entries), "entries": entries}
 
 
 def _load_signature(signature_path: Path) -> Optional[dict]:
@@ -158,15 +162,19 @@ def _ensure_index(
 
             cur = conn.cursor()
             cur.execute("DROP TABLE IF EXISTS paragraphs_fts")
+            # Only `text` is indexed; metadata columns are stored (so they can be
+            # returned and filtered) but kept out of the inverted index. Context
+            # is reconstructed from neighbouring rows at query time rather than
+            # stored, which previously tripled the on-disk size.
             cur.execute(
                 "CREATE VIRTUAL TABLE paragraphs_fts USING fts5("
-                "text, book_title, author, location, context_before, context_after)"
+                "text, book_title UNINDEXED, author UNINDEXED, location UNINDEXED)"
             )
 
             insert_sql = (
                 "INSERT INTO paragraphs_fts "
-                "(text, book_title, author, location, context_before, context_after) "
-                "VALUES (?, ?, ?, ?, ?, ?)"
+                "(text, book_title, author, location) "
+                "VALUES (?, ?, ?, ?)"
             )
 
             for book in books.values():
@@ -195,9 +203,7 @@ def _ensure_index(
                         continue
 
                     location = chapter_title or (book.toc[0][0] if book.toc else "Unknown section")
-                    for i, paragraph in enumerate(paragraphs):
-                        before = _normalize(paragraphs[i - 1]) if i > 0 else ""
-                        after = _normalize(paragraphs[i + 1]) if i + 1 < len(paragraphs) else ""
+                    for paragraph in paragraphs:
                         cur.execute(
                             insert_sql,
                             (
@@ -205,8 +211,6 @@ def _ensure_index(
                                 book.title,
                                 book.author or "Unknown",
                                 location,
-                                before,
-                                after,
                             ),
                         )
                         paragraph_count += 1
@@ -217,6 +221,14 @@ def _ensure_index(
                 logger.info("Built FTS index with %s paragraphs in %.2fs", paragraph_count, elapsed)
             if index_path != ":memory:":
                 _save_signature(signature_path, signature)
+
+        # Reclaim pages freed by the rebuild so the file shrinks on disk
+        # (VACUUM cannot run inside the transaction above).
+        if index_path != ":memory:":
+            try:
+                conn.execute("VACUUM")
+            except sqlite3.Error as exc:
+                logger.warning("VACUUM after index rebuild failed: %s", exc)
     finally:
         if owns_conn:
             conn.close()
@@ -255,6 +267,25 @@ def _escape_fts_phrase(term: str) -> str:
 def _build_fts_query(topic_list: list[str]) -> str:
     terms = [_escape_fts_phrase(t) for t in topic_list if t and t.strip()]
     return " OR ".join(terms)
+
+
+def _neighbour_context(cur, rowid: int, book_title: str, location: str) -> tuple[str, str]:
+    """Reconstruct (before, after) from adjacent rows in the same chapter.
+
+    Paragraphs are inserted sequentially, so rowid-1 / rowid+1 are the previous
+    and next paragraphs. A neighbour only counts as context if it belongs to the
+    same book and location, matching how context used to be stored.
+    """
+    def fetch(target_rowid: int) -> str:
+        row = cur.execute(
+            "SELECT text, book_title, location FROM paragraphs_fts WHERE rowid = ?",
+            (target_rowid,),
+        ).fetchone()
+        if row and row["book_title"] == book_title and row["location"] == location:
+            return row["text"]
+        return ""
+
+    return fetch(rowid - 1), fetch(rowid + 1)
 
 
 def search_topic(
@@ -383,7 +414,7 @@ def search_topic(
             order_sql = "ORDER BY score ASC"
 
         query_sql = (
-            "SELECT text, book_title, author, location, context_before, context_after, "
+            "SELECT rowid, text, book_title, author, location, "
             f"{score_select} "
             f"FROM paragraphs_fts WHERE {where_sql} "
             + order_sql
@@ -410,14 +441,17 @@ def search_topic(
                 # so a higher relevance_score means a stronger match.
                 magnitude = abs(score) if score is not None else 0.0
                 relevance_score = round(magnitude / (1.0 + magnitude), 3)
+            before, after = _neighbour_context(
+                cur, row["rowid"], row["book_title"], row["location"]
+            )
             results.append(
                 {
                     "text": row["text"],
                     "book_title": row["book_title"],
                     "author": row["author"],
                     "location": row["location"],
-                    "context_before": row["context_before"],
-                    "context_after": row["context_after"],
+                    "context_before": before,
+                    "context_after": after,
                     "relevance_score": relevance_score,
                 }
             )

@@ -332,6 +332,32 @@ class TestSearchTopicPhrase:
         locations = {r["location"] for r in res["results"]}
         assert locations == {"Chapter 1"}
 
+    def test_context_reconstructed_from_neighbours(self):
+        books = self._books()
+        loader = self._loader([(
+            "Chapter 1",
+            "First paragraph here.\n\n"
+            "The match is in this middle paragraph.\n\n"
+            "Third paragraph here.",
+        )])
+        res = search_topic("middle", books, index_path=":memory:", chapter_loader=loader)
+        assert res["total_results"] == 1
+        hit = res["results"][0]
+        assert "First paragraph" in hit["context_before"]
+        assert "Third paragraph" in hit["context_after"]
+
+    def test_context_empty_at_chapter_boundaries(self):
+        books = self._books()
+        loader = self._loader([
+            ("Chapter 1", "Only paragraph of chapter one with token alpha."),
+            ("Chapter 2", "Only paragraph of chapter two with token alpha."),
+        ])
+        res = search_topic("alpha", books, index_path=":memory:", chapter_loader=loader)
+        # Each match is alone in its chapter, so no cross-chapter context bleeds in.
+        for hit in res["results"]:
+            assert hit["context_before"] == ""
+            assert hit["context_after"] == ""
+
     def test_low_confidence_flag_present_and_bool(self):
         books = self._books()
         loader = self._loader([("Chapter 1", "real prose about testing frameworks")])
