@@ -102,6 +102,7 @@ def cmd_topic(args, books):
         author_filter=args.author,
         match_type=args.match_type,
         topics=multi,
+        phrase=args.phrase,
         chapter_loader=lambda book: parse_epub_chapters(book.path),
     )
 
@@ -117,8 +118,14 @@ def cmd_topic(args, books):
     total = results.get("total_results", len(matches)) if isinstance(results, dict) else len(matches)
     label = " / ".join(topics)
     if not matches:
-        print(f"No passages found for '{label}'.")
+        if args.phrase:
+            print(f"No verbatim match for '{label}'.")
+        else:
+            print(f"No passages found for '{label}'.")
         return
+    if results.get("low_confidence"):
+        print("Note: all matches are weak — the text may not appear "
+              "near-verbatim. Try --phrase for an exact lookup.\n")
     print(f"{total} passage(s) for '{label}'; showing {len(matches)} (offset {args.offset})\n")
     for m in matches:
         book_title = m.get("book_title", "Unknown")
@@ -195,6 +202,10 @@ def build_parser():
     p_topic.add_argument(
         "--match-type", choices=["exact", "fuzzy"], default="fuzzy",
         help="Match strategy for book/author filters (default fuzzy).",
+    )
+    p_topic.add_argument(
+        "--phrase", action="store_true",
+        help="Verbatim substring lookup (for citation verification).",
     )
     p_topic.set_defaults(func=cmd_topic)
 

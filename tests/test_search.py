@@ -297,6 +297,52 @@ class TestSearchTopic:
             )
 
 
+class TestSearchTopicPhrase:
+    """Tests for phrase mode, boilerplate filtering, and weak-match signalling."""
+
+    def _books(self):
+        from books import BookMetadata
+        return {"/b.epub": BookMetadata(title="Book", author="Auth", path="/b.epub")}
+
+    def _loader(self, chapters):
+        return lambda book: chapters
+
+    def test_phrase_finds_substring_fts_misses(self):
+        books = self._books()
+        loader = self._loader([("Chapter 1", "He studied antidisestablishmentarianism for years.")])
+
+        ranked = search_topic("disestablish", books, index_path=":memory:",
+                              chapter_loader=loader, phrase=False)
+        phrased = search_topic("disestablish", books, index_path=":memory:",
+                               chapter_loader=loader, phrase=True)
+
+        assert ranked["total_results"] == 0          # not a token, FTS misses it
+        assert phrased["total_results"] == 1         # substring match succeeds
+        assert phrased["phrase"] is True
+        assert phrased["results"][0]["relevance_score"] == 1.0
+
+    def test_boilerplate_locations_excluded(self):
+        books = self._books()
+        loader = self._loader([
+            ("Cover Page", "all about testing here"),
+            ("Index", "testing 12, 44"),
+            ("Chapter 1", "real prose about testing"),
+        ])
+        res = search_topic("testing", books, index_path=":memory:", chapter_loader=loader)
+        locations = {r["location"] for r in res["results"]}
+        assert locations == {"Chapter 1"}
+
+    def test_low_confidence_flag_present_and_bool(self):
+        books = self._books()
+        loader = self._loader([("Chapter 1", "real prose about testing frameworks")])
+        res = search_topic("testing", books, index_path=":memory:", chapter_loader=loader)
+        assert isinstance(res["low_confidence"], bool)
+        # Exact phrase hits are never flagged low-confidence.
+        phr = search_topic("real prose", books, index_path=":memory:",
+                           chapter_loader=loader, phrase=True)
+        assert phr["low_confidence"] is False
+
+
 class TestSearchIntegration:
     """Integration tests combining metadata and topic search."""
     

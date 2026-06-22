@@ -223,6 +223,26 @@ def _ensure_index(
     return True
 
 
+# Front/back-matter locations that rarely contain citable prose; excluded from
+# topic results so cover/TOC/index fragments don't crowd out real matches.
+BOILERPLATE_LOCATION_PATTERNS = (
+    "cover",
+    "title page",
+    "table of contents",
+    "contents",
+    "index",
+    "copyright",
+    "dedication",
+    "acknowledg",
+    "about the author",
+    "colophon",
+)
+
+# If the best match in a (ranked) result set scores below this, the query
+# probably has no strong match and the results are likely noise.
+LOW_CONFIDENCE_SCORE = 0.2
+
+
 def _escape_fts_phrase(term: str) -> str:
     term = term.strip()
     if not term:
@@ -249,8 +269,17 @@ def search_topic(
     text_loader: Optional[Callable[[BookMetadata], str]] = None,
     index_path: Optional[str] = None,
     chapter_loader: Optional[Callable[[BookMetadata], list]] = None,
+    phrase: bool = False,
 ) -> Dict[str, Any]:
-    """Search for topic in book content using SQLite FTS."""
+    """Search for a topic in book content using SQLite FTS.
+
+    With ``phrase=True`` the query is matched as a verbatim, case-insensitive
+    substring (a LIKE scan over the text column) rather than ranked FTS tokens —
+    use this for citation verification, where a quote must be found exactly even
+    if the ranker would not surface it. Cover/TOC/index fragments are always
+    excluded, and ranked results carry a ``low_confidence`` flag when even the
+    best match is weak.
+    """
     if query is not None:
         topic_list = [query]
     else:
@@ -303,8 +332,20 @@ def search_topic(
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
 
-        where = ["paragraphs_fts MATCH ?"]
-        params: list[Any] = [_build_fts_query(topic_list)]
+        where: list[str] = []
+        params: list[Any] = []
+
+        if phrase:
+            # Verbatim substring match on the text column (LIKE is
+            # case-insensitive for ASCII), OR'd across topics.
+            like_clauses = []
+            for topic in topic_list:
+                like_clauses.append("text LIKE ?")
+                params.append(f"%{_normalize(topic)}%")
+            where.append("(" + " OR ".join(like_clauses) + ")")
+        else:
+            where.append("paragraphs_fts MATCH ?")
+            params.append(_build_fts_query(topic_list))
 
         if book_filter:
             if match_type == "exact":
@@ -322,21 +363,35 @@ def search_topic(
                 where.append("author LIKE ?")
                 params.append(f"%{author_filter}%")
 
+        # Always drop front/back-matter (cover, TOC, index, ...) noise.
+        for pattern in BOILERPLATE_LOCATION_PATTERNS:
+            where.append("location NOT LIKE ? COLLATE NOCASE")
+            params.append(f"%{pattern}%")
+
         where_sql = " AND ".join(where)
 
         total_sql = f"SELECT COUNT(*) FROM paragraphs_fts WHERE {where_sql}"
         total_results = cur.execute(total_sql, params).fetchone()[0]
 
-        limit_sql = "" if limit <= 0 else " LIMIT ? OFFSET ?"
+        # Phrase matches are exact, so order by document position; ranked
+        # matches order by bm25 (ascending = most relevant first).
+        if phrase:
+            score_select = "0.0 AS score"
+            order_sql = "ORDER BY rowid ASC"
+        else:
+            score_select = "bm25(paragraphs_fts) AS score"
+            order_sql = "ORDER BY score ASC"
+
         query_sql = (
             "SELECT text, book_title, author, location, context_before, context_after, "
-            "bm25(paragraphs_fts) AS score "
+            f"{score_select} "
             f"FROM paragraphs_fts WHERE {where_sql} "
-            "ORDER BY score ASC" + limit_sql
+            + order_sql
         )
 
         query_params = list(params)
         if limit > 0:
+            query_sql += " LIMIT ? OFFSET ?"
             query_params.extend([limit, offset])
         elif offset:
             # SQLite requires LIMIT when using OFFSET.
@@ -346,11 +401,15 @@ def search_topic(
         rows = cur.execute(query_sql, query_params).fetchall()
         results = []
         for row in rows:
-            score = row["score"]
-            if score is None:
-                relevance_score = 0.0
+            if phrase:
+                # Exact substring hit: full confidence.
+                relevance_score = 1.0
             else:
-                relevance_score = round(1.0 / (1.0 + abs(score)), 3)
+                score = row["score"]
+                # bm25 is more negative for better matches; map |bm25| -> (0,1)
+                # so a higher relevance_score means a stronger match.
+                magnitude = abs(score) if score is not None else 0.0
+                relevance_score = round(magnitude / (1.0 + magnitude), 3)
             results.append(
                 {
                     "text": row["text"],
@@ -363,10 +422,18 @@ def search_topic(
                 }
             )
 
+        low_confidence = (
+            not phrase
+            and bool(results)
+            and max(r["relevance_score"] for r in results) < LOW_CONFIDENCE_SCORE
+        )
+
         return {
             "total_results": total_results,
             "offset": offset,
             "limit": limit,
+            "phrase": phrase,
+            "low_confidence": low_confidence,
             "results": results,
         }
     finally:

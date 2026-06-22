@@ -57,6 +57,15 @@ def test_topic_multiple_is_or(patched_library, capsys):
     assert data["total_results"] >= 1
 
 
+def test_topic_phrase_mode(patched_library, capsys):
+    rc = cli.main(["--json", "topic", "quality assurance", "--phrase"])
+    data = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert data["phrase"] is True
+    assert data["total_results"] >= 1
+    assert all(r["relevance_score"] == 1.0 for r in data["results"])
+
+
 def test_doctor_reports_no_text_layer(patched_library, monkeypatch, capsys):
     # "Another Book" gets plenty of text; "Test Book" gets almost none.
     def fake_text(path):
