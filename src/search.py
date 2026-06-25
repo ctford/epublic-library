@@ -566,6 +566,55 @@ def search_topic(
         conn.close()
 
 
+# How many passages to pool before aggregating per book, and the minimum best
+# passage score for the library to count as a real source for a concept.
+SUGGEST_PASSAGE_POOL = 200
+SUGGEST_MIN_SCORE = 0.3
+
+
+def suggest_citation(
+    concept: str,
+    books: Dict[str, BookMetadata],
+    limit: int = 5,
+    text_loader: Optional[Callable[[BookMetadata], str]] = None,
+    index_path: Optional[str] = None,
+    chapter_loader: Optional[Callable[[BookMetadata], list]] = None,
+) -> Dict[str, Any]:
+    """Inverse of search: given a concept, return library books that cover it.
+
+    Aggregates topic passages per book, ranks books by their best supporting
+    passage (then by how many passages hit), and returns each with one
+    supporting quote and attribution. ``no_strong_source`` is set when nothing
+    in the library covers the concept well, so a gap is stated rather than
+    papered over with a weak match.
+    """
+    res = search_topic(
+        concept, books, limit=SUGGEST_PASSAGE_POOL, offset=0,
+        text_loader=text_loader, index_path=index_path, chapter_loader=chapter_loader,
+    )
+    if isinstance(res, dict) and res.get("error"):
+        return {"concept": concept, "sources": [], "no_strong_source": True,
+                "error": res["error"]}
+
+    by_book: Dict[tuple, Dict[str, Any]] = {}
+    for m in res.get("results", []):
+        key = (m["book_title"], m["author"])
+        agg = by_book.setdefault(key, {
+            "book_title": m["book_title"], "author": m["author"],
+            "best_score": 0.0, "hits": 0, "passage": None, "location": None,
+        })
+        agg["hits"] += 1
+        if m["relevance_score"] >= agg["best_score"]:
+            agg["best_score"] = m["relevance_score"]
+            agg["passage"] = m["text"]
+            agg["location"] = m.get("location")
+
+    ranked = sorted(by_book.values(),
+                    key=lambda b: (b["best_score"], b["hits"]), reverse=True)[:limit]
+    no_strong = (not ranked) or ranked[0]["best_score"] < SUGGEST_MIN_SCORE
+    return {"concept": concept, "sources": ranked, "no_strong_source": no_strong}
+
+
 def prebuild_index(
     books: Dict[str, BookMetadata],
     text_loader: Optional[Callable[[BookMetadata], str]] = None,

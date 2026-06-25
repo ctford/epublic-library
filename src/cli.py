@@ -12,7 +12,7 @@ import os
 import sys
 
 from books import diagnose_book, get_books, parse_epub_chapters, parse_epub_text
-from search import search_metadata, search_topic
+from search import search_metadata, search_topic, suggest_citation
 
 MAX_LIMIT = 500
 
@@ -146,6 +146,36 @@ def cmd_topic(args, books):
         print(f"  {m.get('text', '').strip()}\n")
 
 
+def cmd_suggest(args, books):
+    res = suggest_citation(
+        args.concept, books, limit=args.limit,
+        chapter_loader=lambda book: parse_epub_chapters(book.path),
+    )
+    if args.json:
+        print(json.dumps(res, indent=2))
+        return
+    if res.get("error"):
+        print(f"Error: {res['error']}")
+        return
+
+    sources = res["sources"]
+    if not sources:
+        print(f"No source in the library covers '{args.concept}'.")
+        return
+    if res["no_strong_source"]:
+        print(f"No strong source for '{args.concept}' — only weak matches "
+              f"(consider acquiring a dedicated text):\n")
+    else:
+        print(f"Sources for '{args.concept}' (best first):\n")
+    for s in sources:
+        loc = f" [{s['location']}]" if s.get("location") else ""
+        print(f"{s['book_title']} — {s['author']}  "
+              f"(score {s['best_score']:.2f}, {s['hits']} passage(s)){loc}")
+        if s.get("passage"):
+            print(f"   {s['passage'].strip()[:300]}")
+        print()
+
+
 def cmd_doctor(args, books):
     problems = []
     for book in sorted(books.values(), key=lambda b: (b.title or "").lower()):
@@ -216,6 +246,14 @@ def build_parser():
         help="Verbatim substring lookup (for citation verification).",
     )
     p_topic.set_defaults(func=cmd_topic)
+
+    p_suggest = sub.add_parser(
+        "suggest",
+        help="Suggest citable library sources for a concept (inverse search).",
+    )
+    p_suggest.add_argument("concept", help="Concept or phrase to find a source for.")
+    p_suggest.add_argument("--limit", type=int, default=5, help="Max sources (default 5).")
+    p_suggest.set_defaults(func=cmd_suggest)
 
     p_doctor = sub.add_parser(
         "doctor",

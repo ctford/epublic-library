@@ -67,6 +67,21 @@ def test_topic_phrase_mode(patched_library, capsys):
     assert all(r["relevance_score"] == 1.0 for r in data["results"])
 
 
+def test_suggest_finds_source(patched_library, capsys):
+    rc = cli.main(["--json", "suggest", "deployment"])
+    data = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert "Another Book" in [s["book_title"] for s in data["sources"]]
+
+
+def test_suggest_reports_no_source(patched_library, capsys):
+    rc = cli.main(["--json", "suggest", "quantum chromodynamics lagrangian"])
+    data = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert data["sources"] == []
+    assert data["no_strong_source"] is True
+
+
 def test_doctor_reports_no_text_layer(patched_library, monkeypatch, capsys):
     # "Another Book" gets plenty of text; "Test Book" gets almost none.
     def fake_text(path):

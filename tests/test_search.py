@@ -7,7 +7,7 @@ import sys
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
-from search import search_metadata, search_topic
+from search import search_metadata, search_topic, suggest_citation
 
 
 class TestSearchMetadata:
@@ -432,6 +432,32 @@ class TestSearchTopicPhrase:
         phr = search_topic("real prose", books, index_path=":memory:",
                            chapter_loader=loader, phrase=True)
         assert phr["low_confidence"] is False
+
+
+class TestSuggestCitation:
+    """Inverse search: concept in, ranked citable sources out."""
+
+    def _books(self):
+        from books import BookMetadata
+        return {"/b.epub": BookMetadata(title="Flow", author="Reinertsen", path="/b.epub")}
+
+    def test_aggregates_and_attributes(self):
+        books = self._books()
+        loader = lambda b: [("Ch1", "The cost of delay is central.\n\n"
+                                    "Managing the cost of delay drives decisions.")]
+        res = suggest_citation("cost of delay", books, index_path=":memory:", chapter_loader=loader)
+        assert res["sources"]
+        top = res["sources"][0]
+        assert top["book_title"] == "Flow" and top["author"] == "Reinertsen"
+        assert top["hits"] >= 1 and top["passage"]
+
+    def test_no_source_is_reported_not_faked(self):
+        books = self._books()
+        loader = lambda b: [("Ch1", "An unrelated paragraph about gardening tools.")]
+        res = suggest_citation("monadic parser combinators", books,
+                               index_path=":memory:", chapter_loader=loader)
+        assert res["sources"] == []
+        assert res["no_strong_source"] is True
 
 
 class TestSearchIntegration:
