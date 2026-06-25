@@ -39,37 +39,129 @@ def _fuzzy_match(query: str, target: str, threshold: int = 80) -> bool:
     return similarity >= threshold
 
 
-def search_metadata(query: str, books: Dict[str, BookMetadata], 
+# Generic words that, on their own, should not make a title "match" a query.
+# They are still counted toward coverage, but a hit resting only on these is
+# flagged weak (e.g. "AI Engineering" vs "...Software Engineering").
+TITLE_STOPWORDS = frozenset({
+    "a", "an", "the", "of", "and", "or", "to", "in", "for", "on", "with", "as",
+    "at", "by", "from", "its", "is", "be", "your", "you",
+    "software", "engineering", "architecture", "system", "systems", "design",
+    "designing", "programming", "development", "guide", "handbook",
+    "introduction", "edition", "practice", "practical", "approach", "principles",
+    "fundamentals", "patterns", "building", "data", "science", "art",
+    "essential", "essentials", "management", "modern", "computer",
+})
+
+# A query is a real match only if most of its tokens are present in the field.
+# This kills subset false positives that token_set_ratio used to score as 100.
+_QUERY_COVERAGE_MIN = 0.6
+_STRONG_COVERAGE_MIN = 0.8
+_STRONG_TITLE_COVERAGE_MIN = 0.4   # a strong hit must explain part of the title
+_TOKEN_FUZZY_MIN = 85              # floor for per-token fuzzy ratio (refactoring != recording)
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+def _tokens(text: str) -> list[str]:
+    return _TOKEN_RE.findall(text.lower())
+
+
+def _tokens_close(a: str, b: str, fuzzy: bool, threshold: int) -> bool:
+    if a == b:
+        return True
+    if min(len(a), len(b)) >= 4 and (a.startswith(b) or b.startswith(a)):
+        return True
+    # Only fuzzy-match reasonably long tokens, and with a high floor, so short or
+    # superficially-similar words (e.g. refactoring/recording) don't collide.
+    if fuzzy and HAS_FUZZY and min(len(a), len(b)) >= 4:
+        return fuzz.ratio(a, b) >= max(threshold, _TOKEN_FUZZY_MIN)
+    return False
+
+
+def _coverage(query_toks: list[str], target_toks: list[str],
+              fuzzy: bool, threshold: int) -> tuple[float, int]:
+    """Fraction of query tokens present in target, and how many are non-generic."""
+    if not query_toks:
+        return 0.0, 0
+    targets = list(dict.fromkeys(target_toks))
+    matched = [q for q in query_toks if any(_tokens_close(q, t, fuzzy, threshold) for t in targets)]
+    significant = sum(1 for m in matched if m not in TITLE_STOPWORDS)
+    return len(matched) / len(query_toks), significant
+
+
+def _field_match(query: str, target: str, fuzzy: bool, threshold: int):
+    """Score a query against one metadata field; None if it isn't a real match."""
+    q, t = _tokens(query), _tokens(target)
+    if not q or not t:
+        return None
+    cov_q, significant = _coverage(q, t, fuzzy, threshold)
+    if cov_q < _QUERY_COVERAGE_MIN:
+        return None
+    cov_t, _ = _coverage(t, q, fuzzy, threshold)  # how much of the title the query explains
+    strong = (cov_q >= _STRONG_COVERAGE_MIN and significant >= 1
+              and cov_t >= _STRONG_TITLE_COVERAGE_MIN)
+    score = round(cov_q * (0.6 + 0.4 * cov_t), 3)
+    return score, ("strong" if strong else "weak")
+
+
+def search_metadata(query: str, books: Dict[str, BookMetadata],
                    fuzzy: bool = True, fuzzy_threshold: int = 80) -> List[Dict[str, Any]]:
     """
     Search book metadata (title, author, published year).
-    
+
+    Matching is coverage-based: most of the query's tokens must appear in the
+    field, so a single shared generic word (e.g. "Engineering", "Architecture")
+    no longer counts as a match and hides real gaps. Each result carries a
+    ``relevance_score``, a ``match_strength`` of "strong"/"weak", and the
+    ``matched_on`` fields; results are ranked strongest-first.
+
     Args:
         query: Search term
         books: Dictionary of books to search
         fuzzy: Enable fuzzy matching for typo tolerance (requires fuzzywuzzy)
-        fuzzy_threshold: Similarity threshold for fuzzy matching (0-100)
-    
+        fuzzy_threshold: Per-token similarity threshold for fuzzy matching (0-100)
+
     Returns:
-        List of matching books with metadata
+        List of matching books with metadata, ranked by match strength
     """
     results = []
-    matcher = _fuzzy_match if fuzzy else _exact_match
-    
+
     for book in books.values():
-        # Check if query matches title, author, or year
-        title_match = matcher(query, book.title)
-        author_match = book.author and matcher(query, book.author)
-        year_match = book.published and _exact_match(query, book.published)  # Year always exact
-        
-        if title_match or author_match or year_match:
-            results.append({
-                'title': book.title,
-                'author': book.author or 'Unknown',
-                'published': book.published or 'Unknown',
-                'chapters': [ch[0] for ch in book.toc[:5]]  # First 5 chapters
-            })
-    
+        best = None
+        matched_on = []
+
+        title_m = _field_match(query, book.title, fuzzy, fuzzy_threshold)
+        if title_m:
+            matched_on.append("title")
+            best = title_m
+
+        if book.author:
+            author_m = _field_match(query, book.author, fuzzy, fuzzy_threshold)
+            if author_m:
+                matched_on.append("author")
+                if best is None or author_m[0] > best[0]:
+                    best = author_m
+
+        if book.published and _exact_match(query, book.published):  # Year always exact
+            matched_on.append("year")
+            if best is None or 1.0 > best[0]:
+                best = (1.0, "strong")
+
+        if best is None:
+            continue
+
+        score, strength = best
+        results.append({
+            'title': book.title,
+            'author': book.author or 'Unknown',
+            'published': book.published or 'Unknown',
+            'chapters': [ch[0] for ch in book.toc[:5]],  # First 5 chapters
+            'relevance_score': score,
+            'match_strength': strength,
+            'matched_on': matched_on,
+        })
+
+    results.sort(key=lambda r: (r['match_strength'] == 'strong', r['relevance_score']),
+                 reverse=True)
     return results
 
 

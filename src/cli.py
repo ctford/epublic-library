@@ -83,12 +83,16 @@ def cmd_search(args, books):
     if not results:
         print(f"No books matched '{args.query}'.")
         return
-    print(f"{len(results)} match(es) for '{args.query}':\n")
+    strong = [r for r in results if r.get("match_strength") != "weak"]
+    weak = [r for r in results if r.get("match_strength") == "weak"]
+    print(f"{len(results)} match(es) for '{args.query}' "
+          f"({len(strong)} strong, {len(weak)} weak):\n")
     for r in results:
         title = r.get("title", "Unknown")
         author = r.get("author", "Unknown")
         published = r.get("published", "Unknown")
-        print(f"{title} — {author} ({published})")
+        mark = "  [weak]" if r.get("match_strength") == "weak" else ""
+        print(f"{title} — {author} ({published}){mark}")
 
 
 def cmd_topic(args, books):

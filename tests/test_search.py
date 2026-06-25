@@ -297,6 +297,71 @@ class TestSearchTopic:
             )
 
 
+class TestSearchMetadataPrecision:
+    """Coverage-based matching must not let one shared generic word hide a gap."""
+
+    def _lib(self, *items):
+        from books import BookMetadata
+        return {
+            f"/{i}.epub": BookMetadata(title=t, author=a, published="2020", path=f"/{i}.epub")
+            for i, (t, a) in enumerate(items)
+        }
+
+    def test_shared_generic_word_is_not_a_match(self):
+        books = self._lib(
+            ("AI Engineering", "Chip Huyen"),
+            ("The Mythical Man-Month: Essays on Software Engineering", "Frederick P. Brooks"),
+            ("Modern Software Engineering", "David Farley"),
+        )
+        res = search_metadata("AI Engineering", books)
+        titles = [r["title"] for r in res]
+        assert "AI Engineering" in titles
+        assert "The Mythical Man-Month: Essays on Software Engineering" not in titles
+        assert "Modern Software Engineering" not in titles
+
+    def test_missing_book_reports_gap(self):
+        books = self._lib(
+            ("Fundamentals of Software Architecture", "Mark Richards"),
+            ("Software Architecture: The Hard Parts", "Neal Ford"),
+        )
+        # No "Clean Architecture" present -> must be a gap, not 2 false matches.
+        assert search_metadata("Clean Architecture", books) == []
+
+    def test_short_overlap_excluded(self):
+        books = self._lib(
+            ("Infrastructure as Code", "Kief Morris"),
+            ("Code", "Charles Petzold"),
+        )
+        titles = [r["title"] for r in search_metadata("Infrastructure Code", books)]
+        assert "Infrastructure as Code" in titles
+        assert "Code" not in titles
+
+    def test_fuzzy_does_not_collide_similar_words(self):
+        books = self._lib(("Recording Unhinged", "Sylvia Massy"))
+        assert search_metadata("Refactoring", books) == []
+
+    def test_generic_only_query_is_weak(self):
+        books = self._lib(("Fundamentals of Software Architecture", "Mark Richards"))
+        res = search_metadata("Software Architecture", books)
+        assert res and all(r["match_strength"] == "weak" for r in res)
+
+    def test_results_ranked_strong_first_by_score(self):
+        books = self._lib(
+            ("Refactoring Databases", "Scott Ambler"),
+            ("Refactoring", "Martin Fowler"),
+        )
+        res = search_metadata("Refactoring", books)
+        assert res[0]["title"] == "Refactoring"          # exact title outranks superset
+        assert res[0]["relevance_score"] >= res[1]["relevance_score"]
+
+    def test_result_has_strength_fields(self):
+        books = self._lib(("Team Topologies", "Matthew Skelton"))
+        r = search_metadata("Team Topologies", books)[0]
+        assert r["match_strength"] == "strong"
+        assert 0.0 <= r["relevance_score"] <= 1.0
+        assert "title" in r["matched_on"]
+
+
 class TestSearchTopicPhrase:
     """Tests for phrase mode, boilerplate filtering, and weak-match signalling."""
 
