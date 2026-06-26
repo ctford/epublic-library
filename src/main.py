@@ -12,8 +12,14 @@ from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
 from mcp.types import ServerCapabilities, Tool, TextContent, ToolsCapability
 
-from books import get_books, parse_epub_text, parse_epub_chapters, refresh_books_cache
-from search import search_metadata, search_topic, prebuild_index
+from books import (
+    diagnose_book,
+    get_books,
+    parse_epub_text,
+    parse_epub_chapters,
+    refresh_books_cache,
+)
+from search import search_metadata, search_topic, suggest_citation, prebuild_index
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -96,7 +102,12 @@ def get_tools() -> list[Tool]:
         ),
         Tool(
             name="search_books",
-            description="Search book metadata by title, author, or publication year",
+            description=(
+                "Search book metadata by title, author, or publication year. Each "
+                "result has match_strength 'strong' or 'weak' (weak = matched only "
+                "on a generic shared word); an empty result is a real gap — the "
+                "library does not contain that book, so do not assume coverage."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -143,6 +154,10 @@ def get_tools() -> list[Tool]:
                         "type": "array",
                         "items": {"type": "string"},
                         "description": "Optional list of topics; matches any topic (OR logic)"
+                    },
+                    "phrase": {
+                        "type": "boolean",
+                        "description": "Verbatim substring match for citation verification (default false); confirms a quote appears exactly even if the ranker would miss it"
                     }
                 },
                 "anyOf": [
@@ -150,6 +165,38 @@ def get_tools() -> list[Tool]:
                     {"required": ["topics"]}
                 ]
             }
+        ),
+        Tool(
+            name="suggest_source",
+            description=(
+                "Inverse of search: given a concept or phrase, return library books "
+                "that best cover it (ranked, each with a supporting passage and "
+                "attribution) so you can pick a citation. Sets no_strong_source when "
+                "nothing covers it well, rather than returning a weak match."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "concept": {
+                        "type": "string",
+                        "description": "Concept or phrase to find a citable source for"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of sources to return (default 5)"
+                    }
+                },
+                "required": ["concept"]
+            }
+        ),
+        Tool(
+            name="doctor",
+            description=(
+                "Report library health: books with missing title/author/date or no "
+                "usable text layer (image-only scans that cannot be searched). Scans "
+                "every book's text, so it may be slow on a large library."
+            ),
+            inputSchema={"type": "object", "properties": {}}
         )
     ]
 
@@ -250,10 +297,42 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
                 author_filter=author_filter,
                 match_type=match_type,
                 topics=topics,
+                phrase=bool(arguments.get("phrase", False)),
                 chapter_loader=lambda book: parse_epub_chapters(book.path),
             )
             return json.dumps(results, indent=2)
-        
+
+        elif name == "suggest_source":
+            concept = arguments.get("concept", "")
+            limit = arguments.get("limit", 5)
+            if not concept:
+                return json.dumps({"error": "concept is required"})
+            if not isinstance(limit, int) or limit < 0:
+                return json.dumps({"error": "limit must be a non-negative integer"})
+            if limit > MAX_LIMIT:
+                return json.dumps({"error": f"limit must be <= {MAX_LIMIT}"})
+            results = suggest_citation(
+                concept,
+                local_books,
+                limit=limit,
+                chapter_loader=lambda book: parse_epub_chapters(book.path),
+            )
+            return json.dumps(results, indent=2)
+
+        elif name == "doctor":
+            problems = []
+            for book in sorted(local_books.values(), key=lambda b: (b.title or "").lower()):
+                issues = diagnose_book(book, load_book_text(book))
+                if issues:
+                    problems.append({
+                        "title": book.title, "path": book.path, "issues": issues,
+                    })
+            return json.dumps(
+                {"total": len(local_books), "with_issues": len(problems),
+                 "books": problems},
+                indent=2,
+            )
+
         else:
             return json.dumps({"error": f"Unknown tool: {name}"})
     
