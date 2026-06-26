@@ -92,9 +92,16 @@ epublic suggest "cost of delay" --limit 3
 # Report library health (missing metadata / no text layer)
 epublic doctor
 
+# Audit a citation list (one "Title — Author" per line); exits non-zero on gaps
+epublic audit key-texts.md
+
 # Raw JSON for scripting
 epublic --json search "Infrastructure as Code"
 ```
+
+`audit` reads a file (or stdin with `-`) and classifies each entry as `PRESENT`,
+`NO-TEXT`, `WEAK-MATCH`, or `MISSING`, exiting non-zero if anything isn't solidly
+present — so it can gate CI over a `key-texts.md`.
 
 `search` ranks results strongest-first and marks `[weak]` matches (those resting
 only on a generic shared word like "Architecture"); **an empty result is a real
@@ -214,6 +221,19 @@ so it may be slow on a large library.
 ```
 doctor()
 ```
+
+### `audit_citations`
+Check a list of citations against the library. Each entry (`Title — Author` or a
+plain title) is classified `PRESENT`, `NO-TEXT`, `WEAK-MATCH`, or `MISSING`.
+
+**Example:**
+```
+audit_citations(entries=["Team Topologies — Matthew Skelton", "Clean Architecture — Robert C. Martin"])
+```
+
+Returns a `results` array (one per entry, with `status`, `matched_title`,
+`matched_author`) and a `summary` count by status. (The CLI equivalent,
+`epublic audit`, adds file/stdin input and a non-zero exit code for CI.)
 
 ## Implementation Notes
 

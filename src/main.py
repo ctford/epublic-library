@@ -19,7 +19,13 @@ from books import (
     parse_epub_chapters,
     refresh_books_cache,
 )
-from search import search_metadata, search_topic, suggest_citation, prebuild_index
+from search import (
+    audit_citations,
+    search_metadata,
+    search_topic,
+    suggest_citation,
+    prebuild_index,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -197,6 +203,27 @@ def get_tools() -> list[Tool]:
                 "every book's text, so it may be slow on a large library."
             ),
             inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="audit_citations",
+            description=(
+                "Check a list of citations against the library. Each entry "
+                "('Title — Author' or a plain title) is classified PRESENT (matched "
+                "with a real text layer), NO-TEXT (matched but image-only), "
+                "WEAK-MATCH (only a loose match — the real source is likely absent), "
+                "or MISSING. Use to verify a bibliography before relying on it."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "entries": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Citations, one per item ('Title — Author' or plain title)"
+                    }
+                },
+                "required": ["entries"]
+            }
         )
     ]
 
@@ -332,6 +359,16 @@ async def handle_call_tool(name: str, arguments: dict) -> str:
                  "books": problems},
                 indent=2,
             )
+
+        elif name == "audit_citations":
+            entries = arguments.get("entries")
+            if not isinstance(entries, list) or not entries:
+                return json.dumps({"error": "entries must be a non-empty array of strings"})
+            results = audit_citations(entries, local_books, text_loader=load_book_text)
+            summary = {}
+            for r in results:
+                summary[r["status"]] = summary.get(r["status"], 0) + 1
+            return json.dumps({"results": results, "summary": summary}, indent=2)
 
         else:
             return json.dumps({"error": f"Unknown tool: {name}"})

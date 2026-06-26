@@ -7,7 +7,7 @@ import sys
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
-from search import search_metadata, search_topic, suggest_citation
+from search import audit_citations, search_metadata, search_topic, suggest_citation
 
 
 class TestSearchMetadata:
@@ -458,6 +458,41 @@ class TestSuggestCitation:
                                index_path=":memory:", chapter_loader=loader)
         assert res["sources"] == []
         assert res["no_strong_source"] is True
+
+
+class TestAuditCitations:
+    """Citation list -> per-entry status."""
+
+    def _lib(self, *items):
+        from books import BookMetadata
+        return {
+            f"/{i}.epub": BookMetadata(title=t, author=a, published="2020",
+                                       path=f"/{i}.epub", text=txt)
+            for i, (t, a, txt) in enumerate(items)
+        }
+
+    def test_all_four_statuses(self):
+        books = self._lib(
+            ("Infrastructure as Code", "Kief Morris", "x" * 1000),
+            ("Scanned Facsimile", "Anon", "tiny"),
+            ("Fundamentals of Software Architecture", "Mark Richards", "y" * 1000),
+        )
+        res = audit_citations([
+            "Infrastructure as Code — Kief Morris",      # PRESENT
+            "Scanned Facsimile — Anon",                   # NO-TEXT
+            "Clean Architecture — Robert C. Martin",      # MISSING
+            "Software Architecture",                       # WEAK-MATCH (generic only)
+        ], books)
+        status = {r["entry"]: r["status"] for r in res}
+        assert status["Infrastructure as Code — Kief Morris"] == "PRESENT"
+        assert status["Scanned Facsimile — Anon"] == "NO-TEXT"
+        assert status["Clean Architecture — Robert C. Martin"] == "MISSING"
+        assert status["Software Architecture"] == "WEAK-MATCH"
+
+    def test_wrong_author_is_not_present(self):
+        books = self._lib(("Refactoring", "Martin Fowler", "z" * 1000))
+        res = audit_citations(["Refactoring — Some Other Person"], books)
+        assert res[0]["status"] == "WEAK-MATCH"
 
 
 class TestSearchIntegration:

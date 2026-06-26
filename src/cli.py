@@ -12,7 +12,9 @@ import os
 import sys
 
 from books import diagnose_book, get_books, parse_epub_chapters, parse_epub_text
-from search import search_metadata, search_topic, suggest_citation
+from collections import Counter
+
+from search import audit_citations, search_metadata, search_topic, suggest_citation
 
 MAX_LIMIT = 500
 
@@ -176,6 +178,42 @@ def cmd_suggest(args, books):
         print()
 
 
+def cmd_audit(args, books):
+    if args.file in (None, "-"):
+        raw = sys.stdin.read()
+    else:
+        try:
+            with open(args.file, encoding="utf-8") as fh:
+                raw = fh.read()
+        except OSError as exc:
+            print(f"Cannot read {args.file}: {exc}", file=sys.stderr)
+            return 2
+    entries = [ln.strip() for ln in raw.splitlines()
+               if ln.strip() and not ln.lstrip().startswith("#")]
+
+    results = audit_citations(
+        entries, books, text_loader=lambda book: parse_epub_text(book.path),
+    )
+    counts = Counter(r["status"] for r in results)
+
+    if args.json:
+        print(json.dumps({"results": results, "summary": dict(counts)}, indent=2))
+    else:
+        if not results:
+            print("No citations to audit.")
+        for r in results:
+            line = f"{r['status']:11} {r['entry']}"
+            if r["matched_title"] and r["status"] != "MISSING":
+                line += f"  -> {r['matched_title']} — {r['matched_author'] or 'Unknown'}"
+            print(line)
+        if results:
+            print("\n" + "  ".join(f"{k}={counts[k]}" for k in sorted(counts)))
+
+    # Anything not solidly PRESENT fails (for CI over a key-texts list).
+    failures = sum(v for k, v in counts.items() if k != "PRESENT")
+    return 1 if failures else 0
+
+
 def cmd_doctor(args, books):
     problems = []
     for book in sorted(books.values(), key=lambda b: (b.title or "").lower()):
@@ -255,6 +293,17 @@ def build_parser():
     p_suggest.add_argument("--limit", type=int, default=5, help="Max sources (default 5).")
     p_suggest.set_defaults(func=cmd_suggest)
 
+    p_audit = sub.add_parser(
+        "audit",
+        help="Check a citation list against the library (exits non-zero on gaps).",
+    )
+    p_audit.add_argument(
+        "file", nargs="?", default="-",
+        help="File with one 'Title — Author' (or plain title) per line; '-' or "
+             "omitted reads stdin. Lines starting with # are ignored.",
+    )
+    p_audit.set_defaults(func=cmd_audit)
+
     p_doctor = sub.add_parser(
         "doctor",
         help="Report books with missing metadata or no text layer.",
@@ -291,8 +340,8 @@ def main(argv=None):
         print("No books found in the configured library paths.", file=sys.stderr)
         return 1
 
-    args.func(args, books)
-    return 0
+    rc = args.func(args, books)
+    return rc if isinstance(rc, int) else 0
 
 
 if __name__ == "__main__":

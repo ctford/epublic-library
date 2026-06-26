@@ -127,6 +127,33 @@ def test_paths_flag_end_to_end(monkeypatch, mock_books, capsys):
     assert seen["paths"] == ["/my/lib"]
 
 
+def _audit_lib(monkeypatch):
+    from books import BookMetadata
+    lib = {"/a.epub": BookMetadata(title="Infrastructure as Code", author="Kief Morris",
+                                   published="2016", path="/a.epub", text="x" * 1000)}
+    monkeypatch.setattr(cli, "get_books", lambda paths: (lib, False))
+    monkeypatch.setattr(cli, "parse_epub_text", lambda p: "")
+    monkeypatch.setenv("EPUBLIC_LIBRARY_PATHS", "/fake")
+
+
+def test_audit_exit_nonzero_on_gap(monkeypatch, tmp_path, capsys):
+    _audit_lib(monkeypatch)
+    f = tmp_path / "cites.txt"
+    f.write_text("Infrastructure as Code — Kief Morris\n"
+                 "Clean Architecture — Robert C. Martin\n")
+    rc = cli.main(["audit", str(f)])
+    out = capsys.readouterr().out
+    assert "PRESENT" in out and "MISSING" in out
+    assert rc == 1
+
+
+def test_audit_exit_zero_when_all_present(monkeypatch, tmp_path):
+    _audit_lib(monkeypatch)
+    f = tmp_path / "cites.txt"
+    f.write_text("# a comment\nInfrastructure as Code — Kief Morris\n")
+    assert cli.main(["audit", str(f)]) == 0
+
+
 def test_missing_paths_errors(monkeypatch):
     monkeypatch.delenv("EPUBLIC_LIBRARY_PATHS", raising=False)
     with pytest.raises(SystemExit):

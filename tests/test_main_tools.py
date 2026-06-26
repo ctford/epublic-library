@@ -72,6 +72,24 @@ async def test_doctor_tool():
     assert "books" in data and "with_issues" in data
 
 
+@pytest.mark.anyio
+async def test_audit_citations_tool():
+    payload = await main.handle_call_tool(
+        "audit_citations",
+        {"entries": ["Alpha — A", "Clean Architecture — Robert C. Martin"]},
+    )
+    data = json.loads(payload)
+    assert "results" in data and "summary" in data
+    status = {r["entry"]: r["status"] for r in data["results"]}
+    assert status["Clean Architecture — Robert C. Martin"] == "MISSING"
+
+
+@pytest.mark.anyio
+async def test_audit_citations_requires_entries():
+    payload = await main.handle_call_tool("audit_citations", {"entries": []})
+    assert json.loads(payload)["error"]
+
+
 def test_mcp_and_cli_expose_same_capabilities():
     """Every shared capability must exist on both the MCP and CLI surfaces."""
     import argparse
@@ -89,6 +107,7 @@ def test_mcp_and_cli_expose_same_capabilities():
         "topic": ("topic", "find_topic"),
         "suggest": ("suggest", "suggest_source"),
         "doctor": ("doctor", "doctor"),
+        "audit": ("audit", "audit_citations"),
     }
     for cap, (cli_name, mcp_name) in capabilities.items():
         assert cli_name in cli_cmds, f"CLI missing capability: {cap}"

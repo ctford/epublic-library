@@ -56,7 +56,6 @@ TITLE_STOPWORDS = frozenset({
 # This kills subset false positives that token_set_ratio used to score as 100.
 _QUERY_COVERAGE_MIN = 0.6
 _STRONG_COVERAGE_MIN = 0.8
-_STRONG_TITLE_COVERAGE_MIN = 0.4   # a strong hit must explain part of the title
 _TOKEN_FUZZY_MIN = 85              # floor for per-token fuzzy ratio (refactoring != recording)
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 
@@ -97,8 +96,10 @@ def _field_match(query: str, target: str, fuzzy: bool, threshold: int):
     if cov_q < _QUERY_COVERAGE_MIN:
         return None
     cov_t, _ = _coverage(t, q, fuzzy, threshold)  # how much of the title the query explains
-    strong = (cov_q >= _STRONG_COVERAGE_MIN and significant >= 1
-              and cov_t >= _STRONG_TITLE_COVERAGE_MIN)
+    # Strong: most query tokens matched, including at least one distinctive
+    # (non-generic) word. cov_t only affects ranking, not strength, so a short
+    # cited title still matches a book carried under a long subtitled title.
+    strong = cov_q >= _STRONG_COVERAGE_MIN and significant >= 1
     score = round(cov_q * (0.6 + 0.4 * cov_t), 3)
     return score, ("strong" if strong else "weak")
 
@@ -564,6 +565,66 @@ def search_topic(
         }
     finally:
         conn.close()
+
+
+def _split_citation(entry: str) -> tuple[str, Optional[str]]:
+    """Split a 'Title — Author' (or plain title) line into (title, author)."""
+    for sep in ("—", " – ", " - "):
+        if sep in entry:
+            title, author = entry.split(sep, 1)
+            return title.strip(), author.strip() or None
+    return entry.strip(), None
+
+
+def audit_citations(
+    entries: list[str],
+    books: Dict[str, BookMetadata],
+    text_loader: Optional[Callable[[BookMetadata], str]] = None,
+) -> List[Dict[str, Any]]:
+    """Resolve each citation against the library and classify it.
+
+    Status per entry:
+      PRESENT     matched a book strongly and it has a real text layer
+      NO-TEXT     matched, but the book is image-only / has no usable text
+      WEAK-MATCH  only a loose (generic-word) match — likely the real source is absent
+      MISSING     nothing matched
+    """
+    book_list = list(books.values())
+    results = []
+    for entry in entries:
+        title, author = _split_citation(entry)
+        best = None  # (score, strength, book)
+        for book in book_list:
+            tm = _field_match(title, book.title, True, 80)
+            if not tm:
+                continue
+            score, strength = tm
+            if author and book.author:
+                am = _field_match(author, book.author, True, 80)
+                if am is None:
+                    strength = "weak"          # author given but doesn't match
+                elif strength == "strong" and am[1] == "strong":
+                    score += 0.05              # author agreement
+                else:
+                    strength = "weak"
+            if best is None or score > best[0]:
+                best = (score, strength, book)
+
+        if best is None:
+            results.append({"entry": entry, "status": "MISSING",
+                            "matched_title": None, "matched_author": None})
+            continue
+        _, strength, book = best
+        if strength == "weak":
+            status = "WEAK-MATCH"
+        else:
+            text = book.text or ""
+            if not text and text_loader:
+                text = text_loader(book)
+            status = "NO-TEXT" if len((text or "").strip()) < NO_TEXT_THRESHOLD else "PRESENT"
+        results.append({"entry": entry, "status": status,
+                        "matched_title": book.title, "matched_author": book.author})
+    return results
 
 
 # How many passages to pool before aggregating per book, and the minimum best
