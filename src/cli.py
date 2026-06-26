@@ -246,7 +246,11 @@ def cmd_doctor(args, books):
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="epublic",
-        description="Search your EPUB library by metadata or topic.",
+        description="Search a personal EPUB library for finding and verifying "
+                    "citations: look books up (search), find a source for a "
+                    "concept (suggest), verify a quote (topic --phrase), "
+                    "batch-check a bibliography (audit), or report unsearchable "
+                    "books (doctor).",
     )
     parser.add_argument(
         "--paths", action="append", metavar="DIR",

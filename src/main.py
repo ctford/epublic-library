@@ -38,6 +38,28 @@ text_cache = OrderedDict()
 TEXT_CACHE_MAX_BOOKS = 20
 MAX_LIMIT = 500
 
+# Server-level orientation shown to MCP clients so an agent can see how the tools
+# compose, not just what each one does in isolation.
+SERVER_INSTRUCTIONS = (
+    "Search a personal EPUB book library by metadata and full text, primarily to "
+    "find and verify citations.\n\n"
+    "Which tool to use:\n"
+    "- list_books: browse what's in the library.\n"
+    "- search_books: check whether a specific book is present. Results are ranked "
+    "with match_strength 'strong'/'weak'; an EMPTY result is a real gap — the "
+    "library does not contain that book, so do not assume coverage.\n"
+    "- suggest_source: given a concept, get the library books that best cover it "
+    "(with a supporting passage) to pick a citation; it sets no_strong_source when "
+    "nothing covers it well.\n"
+    "- find_topic: find passages on a topic with attribution. Pass phrase=true to "
+    "confirm a verbatim quote appears exactly (citation verification).\n"
+    "- audit_citations: batch-check a list of citations, each classified PRESENT / "
+    "NO-TEXT / WEAK-MATCH / MISSING.\n"
+    "- doctor: report unsearchable books (missing metadata or image-only/no text).\n\n"
+    "Image-only books have no text layer and cannot be found by content search; "
+    "doctor lists them."
+)
+
 
 async def load_books():
     """Load books on startup."""
@@ -388,7 +410,7 @@ async def main():
     asyncio.create_task(prebuild_index_async())
     
     # Create MCP server
-    server = Server("epublic-library")
+    server = Server("epublic-library", instructions=SERVER_INSTRUCTIONS)
     
     @server.list_tools()
     async def list_tools() -> list[Tool]:
@@ -409,6 +431,7 @@ async def main():
                 server_name="epublic-library",
                 server_version="0.1.0",
                 capabilities=ServerCapabilities(tools=ToolsCapability()),
+                instructions=SERVER_INSTRUCTIONS,
             ),
         )
 

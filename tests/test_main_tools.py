@@ -90,6 +90,15 @@ async def test_audit_citations_requires_entries():
     assert json.loads(payload)["error"]
 
 
+def test_mcp_server_has_orientation_instructions():
+    """Server-level instructions must orient an agent to every tool."""
+    text = main.SERVER_INSTRUCTIONS
+    assert text.strip()
+    for tool in ("list_books", "search_books", "find_topic",
+                 "suggest_source", "audit_citations", "doctor"):
+        assert tool in text, f"instructions don't mention {tool}"
+
+
 def test_mcp_and_cli_expose_same_capabilities():
     """Every shared capability must exist on both the MCP and CLI surfaces."""
     import argparse
