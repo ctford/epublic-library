@@ -83,9 +83,23 @@ epublic topic "effective teams" --author "Marty Cagan" --limit 5
 # OR across several topics
 epublic topic testing "quality assurance" TDD --limit 15
 
+# Verify a verbatim quote (exact substring)
+epublic topic "free of time and place" --phrase
+
+# Suggest a citable source for a concept (inverse search)
+epublic suggest "cost of delay" --limit 3
+
+# Report library health (missing metadata / no text layer)
+epublic doctor
+
 # Raw JSON for scripting
 epublic --json search "Infrastructure as Code"
 ```
+
+`search` ranks results strongest-first and marks `[weak]` matches (those resting
+only on a generic shared word like "Architecture"); **an empty result is a real
+gap**, not a tool failure. `suggest` says so explicitly when nothing covers a
+concept, rather than returning a weak match.
 
 Run `epublic --help` (or `epublic <command> --help`) for the full option list.
 If the package's `venv` is not on your `PATH`, call it by full path, e.g.
@@ -129,9 +143,15 @@ search_books(query="Keith Morris")  # Finds "Kief Morris"
 search_books(query="Infrastructure Code")  # Finds "Infrastructure as Code"
 ```
 
-Returns book metadata including author, publication year, and chapter list.
+Returns book metadata including author, publication year, and chapter list. Each
+result carries a `match_strength` of `strong` or `weak` (weak = matched only on a
+generic shared word) and a `relevance_score`; results are ranked strongest-first.
 
-**Note**: Fuzzy matching is enabled by default if `fuzzywuzzy` is installed. It matches author names and titles with typos/variations. Years always require exact matches.
+**Note**: An empty result is a real gap — the library does not contain that book,
+so don't assume coverage. Fuzzy matching (typo tolerance) is enabled by default
+if `fuzzywuzzy` is installed, but matching is coverage-based, so a single shared
+generic word ("Engineering", "Architecture") no longer counts as a match. Years
+always require exact matches.
 
 ### `find_topic`
 Find advice or content on a specific topic with attribution.
@@ -156,6 +176,11 @@ find_topic(topic="functional programming", author_filter="Hickey", match_type="f
 find_topic(topics=["testing", "quality assurance", "TDD"], limit=15)
 ```
 
+**Verbatim quote check (citation verification):**
+```
+find_topic(topic="free of time and place", phrase=true)
+```
+
 Returns:
 - `total_results` with pagination metadata
 - `results` array of passages with full attribution
@@ -167,6 +192,28 @@ Each result includes:
 - `location` (chapter/section when available)
 - `context_before` / `context_after`
 - `relevance_score` (0.0–1.0)
+
+### `suggest_source`
+Inverse of search: given a concept, return library books that best cover it,
+ranked, each with a supporting passage and attribution.
+
+**Example:**
+```
+suggest_source(concept="cost of delay", limit=3)
+```
+
+Returns `concept`, a ranked `sources` array (`book_title`, `author`,
+`best_score`, `hits`, `passage`, `location`), and `no_strong_source: true` when
+nothing in the library covers the concept well.
+
+### `doctor`
+Report library health: books with missing `title`/`author`/`date` or no usable
+text layer (image-only scans that can't be searched). Scans every book's text,
+so it may be slow on a large library.
+
+```
+doctor()
+```
 
 ## Implementation Notes
 
