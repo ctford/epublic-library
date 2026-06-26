@@ -494,6 +494,15 @@ class TestAuditCitations:
         res = audit_citations(["Refactoring — Some Other Person"], books)
         assert res[0]["status"] == "WEAK-MATCH"
 
+    def test_hyphenated_title_without_author(self):
+        # A title containing " - " must not be mis-split into title/author.
+        books = self._lib(
+            ("Cynefin - Weaving Sense-Making into the Fabric of Our World",
+             "Dave Snowden", "z" * 1000),
+        )
+        res = audit_citations(["Cynefin - Weaving Sense-Making into the Fabric"], books)
+        assert res[0]["status"] == "PRESENT"
+
 
 class TestSearchIntegration:
     """Integration tests combining metadata and topic search."""

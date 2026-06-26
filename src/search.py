@@ -576,6 +576,27 @@ def _split_citation(entry: str) -> tuple[str, Optional[str]]:
     return entry.strip(), None
 
 
+def _best_citation_match(title, author, book_list):
+    """Best (score, strength, book) for a (title, author) pair, or None."""
+    best = None
+    for book in book_list:
+        tm = _field_match(title, book.title, True, 80)
+        if not tm:
+            continue
+        score, strength = tm
+        if author and book.author:
+            am = _field_match(author, book.author, True, 80)
+            if am is None:
+                strength = "weak"              # author given but doesn't match
+            elif strength == "strong" and am[1] == "strong":
+                score += 0.05                  # author agreement
+            else:
+                strength = "weak"
+        if best is None or score > best[0]:
+            best = (score, strength, book)
+    return best
+
+
 def audit_citations(
     entries: list[str],
     books: Dict[str, BookMetadata],
@@ -593,22 +614,18 @@ def audit_citations(
     results = []
     for entry in entries:
         title, author = _split_citation(entry)
-        best = None  # (score, strength, book)
-        for book in book_list:
-            tm = _field_match(title, book.title, True, 80)
-            if not tm:
+        candidates = [_best_citation_match(title, author, book_list)]
+        if author:
+            # The split may be wrong (a title can contain " - "), so also try the
+            # whole line as a title. A real wrong-author cite still won't match
+            # this way, so author verification is preserved.
+            candidates.append(_best_citation_match(entry, None, book_list))
+        best = None
+        for cand in candidates:
+            if cand is None:
                 continue
-            score, strength = tm
-            if author and book.author:
-                am = _field_match(author, book.author, True, 80)
-                if am is None:
-                    strength = "weak"          # author given but doesn't match
-                elif strength == "strong" and am[1] == "strong":
-                    score += 0.05              # author agreement
-                else:
-                    strength = "weak"
-            if best is None or score > best[0]:
-                best = (score, strength, book)
+            if best is None or (cand[1] == "strong", cand[0]) > (best[1] == "strong", best[0]):
+                best = cand
 
         if best is None:
             results.append({"entry": entry, "status": "MISSING",
